@@ -7,7 +7,8 @@
   "private": true,
   "scripts": {
     "start": "env -u ELECTRON_RUN_AS_NODE electron .",
-    "package": "npx --yes @electron/packager . \"Phantom Life\" --platform=darwin --overwrite --out=dist --ignore=^/dist"
+    "package": "npx --yes @electron/packager . \"Phantom Life\" --platform=darwin --overwrite --out=dist --icon=build/icon.icns --app-bundle-id=local.phantomlife --ignore=^/dist --ignore=^/build",
+    "install_app": "npm run package && rm -rf \"/Applications/Phantom Life.app\" && cp -R \"dist/Phantom Life-darwin-arm64/Phantom Life.app\" /Applications/ && codesign --force --deep --sign - \"/Applications/Phantom Life.app\" && echo Installed to /Applications"
   },
   "devDependencies": {
     "electron": "^44.9.0"

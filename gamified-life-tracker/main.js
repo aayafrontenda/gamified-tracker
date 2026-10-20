@@ -1,10 +1,14 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 app.setName('Phantom Life');
 // Dev/testing hook: point the save at a throwaway folder.
 if (process.env.PL_USERDATA) app.setPath('userData', process.env.PL_USERDATA);
+
+// Test runs (screenshots / eval) skip hotkeys, reminders and login items.
+const TEST = !!(process.env.PL_SHOT || process.env.PL_EVAL);
+let mainWin = null;
 
 const savePath = () => path.join(app.getPath('userData'), 'save.json');
 const backupDir = () => path.join(app.getPath('userData'), 'backups');
@@ -68,6 +72,17 @@ ipcMain.handle('import', async () => {
 });
 
 ipcMain.handle('reveal-save', () => shell.showItemInFolder(savePath()));
+ipcMain.handle('set-hotkey', (_e, on) => applyHotkey(on));
+ipcMain.handle('set-login', (_e, on) => {
+  if (!TEST) app.setLoginItemSettings({ openAtLogin: !!on });
+  return app.getLoginItemSettings().openAtLogin;
+});
+// Delayed so the user can switch to another app: macOS shows no banner for the focused app.
+ipcMain.handle('test-notify', () => {
+  if (!Notification.isSupported()) return 'unsupported';
+  setTimeout(() => remind('dailies', true), 5000);
+  return 'scheduled';
+});
 ipcMain.handle('save-path', () => savePath());
 
 function createWindow() {
@@ -83,9 +98,22 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: !process.env.PL_SHOT,
     },
   });
   win.loadFile(path.join(__dirname, 'src', 'index.html'));
+  mainWin = win;
+  win.on('closed', () => { if (mainWin === win) mainWin = null; });
+
+  // Dev/testing hook: PL_EVAL=<js> runs an expression after load, prints the result and quits.
+  if (process.env.PL_EVAL) {
+    win.webContents.once('did-finish-load', async () => {
+      await new Promise(r => setTimeout(r, 800));
+      try { console.log('PL_EVAL', JSON.stringify(await win.webContents.executeJavaScript(process.env.PL_EVAL))); }
+      catch (e) { console.log('PL_EVAL_ERR', e.message); }
+      app.quit();
+    });
+  }
 
   // Dev/testing hook: PL_SHOT=<dir> captures every screen to PNGs and quits.
   if (process.env.PL_SHOT) {
@@ -93,11 +121,16 @@ function createWindow() {
       const wait = ms => new Promise(r => setTimeout(r, ms));
       await wait(800);
       if (process.env.PL_SEED) await win.webContents.executeJavaScript('window.__seedDemo && window.__seedDemo()');
-      for (const id of ['status', 'skills', 'quests', 'confidants', 'journal', 'system']) {
+      for (const id of ['status', 'skills', 'quests', 'confidants', 'journal', 'velvet', 'shop', 'system']) {
         await win.webContents.executeJavaScript(`go(${JSON.stringify(id)})`);
-        await wait(700);
+        await wait(id === "velvet" ? 4500 : 700);
         const img = await win.webContents.capturePage();
         fs.writeFileSync(path.join(process.env.PL_SHOT, `${id}.png`), img.toPNG());
+        if (id === 'velvet') {
+          await win.webContents.executeJavaScript("document.querySelector('#main').scrollTop = 99999");
+          await wait(500);
+          fs.writeFileSync(path.join(process.env.PL_SHOT, 'velvet-contract.png'), (await win.webContents.capturePage()).toPNG());
+        }
       }
       await win.webContents.executeJavaScript('window.__demoRankUp && window.__demoRankUp()');
       await wait(900);
@@ -105,18 +138,130 @@ function createWindow() {
       await win.webContents.executeJavaScript('closeRankUp(); openQuickLog()');
       await wait(500);
       fs.writeFileSync(path.join(process.env.PL_SHOT, 'quicklog.png'), (await win.webContents.capturePage()).toPNG());
+      await win.webContents.executeJavaScript('closeModal(); skillModal(state.skills[0].id)');
+      await wait(500);
+      fs.writeFileSync(path.join(process.env.PL_SHOT, 'skillmodal.png'), (await win.webContents.capturePage()).toPNG());
       app.quit();
     });
   }
 }
 
+/* ---------- window helpers ---------- */
+function showWindow() {
+  if (!mainWin) {
+    createWindow();
+    return new Promise(r => mainWin.webContents.once('did-finish-load', () => setTimeout(r, 400)));
+  }
+  if (mainWin.isMinimized()) mainWin.restore();
+  mainWin.show();
+  mainWin.focus();
+  app.focus({ steal: true });
+  return Promise.resolve();
+}
+async function sendToRenderer(channel, ...args) {
+  await showWindow();
+  mainWin.webContents.send(channel, ...args);
+}
+
+/* ---------- global hotkey: Take Action from anywhere ---------- */
+const HOTKEY = 'CommandOrControl+Shift+L';
+function applyHotkey(on) {
+  if (TEST) return false;
+  globalShortcut.unregister(HOTKEY);
+  if (on) globalShortcut.register(HOTKEY, () => sendToRenderer('quick-log'));
+  return globalShortcut.isRegistered(HOTKEY);
+}
+
+/* ---------- Morgana: reminders (run in main, so they work with the window closed) ---------- */
+const pad = n => String(n).padStart(2, '0');
+const dkey = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const weekKey = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return dkey(x); };
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const minutesOf = hm => { const [h, m] = String(hm || '').split(':').map(Number); return Number.isFinite(h) ? h * 60 + (m || 0) : null; };
+const fired = {}; // kind -> date it last fired
+
+function readSave() {
+  try { return JSON.parse(fs.readFileSync(savePath(), 'utf8')); } catch { return null; }
+}
+
+// Keep references so notifications aren't garbage-collected before they're clicked.
+const live = new Set();
+function notify(title, body, screen) {
+  if (!Notification.isSupported()) return null;
+  const n = new Notification({ title, body });
+  live.add(n);
+  n.on('click', () => { live.delete(n); sendToRenderer('go', screen); });
+  n.on('close', () => live.delete(n));
+  n.show();
+  // macOS hides banners from the app in focus — so say it inside the window too.
+  if (mainWin && mainWin.isFocused()) mainWin.webContents.send('morgana', { title, body, screen });
+  return n;
+}
+
+function pendingDailies(save, now) {
+  const today = dkey(now), dow = now.getDay();
+  return (save.quests || []).filter(q => q.type === 'daily'
+    && (!q.days || q.days.includes(dow))
+    && !(save.log || []).some(e => e.questId === q.id && e.date === today));
+}
+
+// force=true: send right now (System → "Test Morgana").
+function remind(kind, force = false) {
+  const save = readSave();
+  if (!save) return;
+  const st = save.settings || {};
+  const now = new Date(), today = dkey(now);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  // Fire once a day, only within 90 min after the chosen time (so a late launch doesn't nag at noon).
+  const due = (on, at) => {
+    if (force) return true;
+    const t = minutesOf(at);
+    return on !== false && t !== null && fired[kind] !== today && nowMin >= t && nowMin - t < 90;
+  };
+
+  if (kind === 'dailies' && due(st.remindDailies, st.dailiesAt || '21:00')) {
+    fired[kind] = today;
+    const left = pendingDailies(save, now);
+    if (!left.length && !force) return;
+    const list = left.slice(0, 3).map(q => q.title).join(', ') + (left.length > 3 ? '…' : '');
+    return notify('Morgana', left.length ? pick([
+      `Hey Joker! You've still got ${left.length} daily quest${left.length > 1 ? 's' : ''}: ${list}.`,
+      `Don't slack off now! ${list} still need${left.length > 1 ? '' : 's'} doing.`,
+      `Mrrrow… the day's almost over and ${list} ${left.length > 1 ? "aren't" : "isn't"} done.`,
+    ]) : 'All dailies cleared today. Not bad, Joker!', 'quests');
+  }
+  if (kind === 'bed' && due(st.remindBed, st.bedAt || '23:30')) {
+    fired[kind] = today;
+    notify('Morgana', pick([
+      "Let's go to sleep, Joker.",
+      "It's getting late. Let's call it a day.",
+      'You should get some rest. Big day tomorrow.',
+    ]), 'status');
+  }
+  if (kind === 'velvet' && now.getDay() === 0 && due(st.remindVelvet, '19:00')) {
+    fired[kind] = today;
+    if ((save.reviews || {})[weekKey(now)]) return;
+    notify('Igor', 'Welcome to the Velvet Room… The week draws to a close. Come, let us appraise it.', 'velvet');
+  }
+}
+const checkReminders = () => ['dailies', 'bed', 'velvet'].forEach(k => remind(k));
+
 app.whenReady().then(() => {
   dailyBackup();
-  createWindow();
+  const st = (readSave() || {}).settings || {};
+  // Started at login: stay in the background (Dock) — reminders and the hotkey still work.
+  if (!app.getLoginItemSettings().wasOpenedAtLogin) createWindow();
+  if (!TEST) {
+    applyHotkey(st.hotkey !== false);
+    setTimeout(checkReminders, 5000);
+    setInterval(checkReminders, 30 * 1000);
+  }
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+app.on('will-quit', () => globalShortcut.unregisterAll());
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
