@@ -1,0 +1,15 @@
+{
+  "name": "phantom-life",
+  "productName": "Phantom Life",
+  "version": "1.0.0",
+  "description": "A Persona 5 styled life tracker. Take your time.",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "env -u ELECTRON_RUN_AS_NODE electron .",
+    "package": "npx --yes @electron/packager . \"Phantom Life\" --platform=darwin --overwrite --out=dist --ignore=^/dist"
+  },
+  "devDependencies": {
+    "electron": "^44.9.0"
+  }
+}
