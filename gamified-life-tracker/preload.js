@@ -8,4 +8,10 @@ contextBridge.exposeInMainWorld('api', {
   importSave: () => ipcRenderer.invoke('import'),
   revealSave: () => ipcRenderer.invoke('reveal-save'),
   savePath: () => ipcRenderer.invoke('save-path'),
+  setHotkey: on => ipcRenderer.invoke('set-hotkey', on),
+  setLogin: on => ipcRenderer.invoke('set-login', on),
+  testNotify: () => ipcRenderer.invoke('test-notify'),
+  onQuickLog: cb => ipcRenderer.on('quick-log', () => cb()),
+  onGo: cb => ipcRenderer.on('go', (_e, screen) => cb(screen)),
+  onMorgana: cb => ipcRenderer.on('morgana', (_e, msg) => cb(msg)),
 });

@@ -26,6 +26,8 @@ const INTENSITY = [
 ];
 const intensity = id => INTENSITY.find(x => x.id === id) || INTENSITY[1];
 const statPtsFor = xp => Math.round(xp / 5);
+const YEN_PER_XP = 10;
+const fmtYen = n => '¥' + Math.round(n).toLocaleString('en-US');
 
 const ARCANA = [
   ['0', 'Fool'], ['I', 'Magician'], ['II', 'Priestess'], ['III', 'Empress'], ['IV', 'Emperor'],
@@ -46,13 +48,16 @@ const QUOTES = [
   'You never see it coming.', 'Rebel against a distorted life.',
 ];
 
+const MENU = () => SCREENS.filter(s => s.menu !== false);
 const SCREENS = [
   { id: 'status',     label: 'Status',     sub: 'Who you are today' },
   { id: 'skills',     label: 'Skills',     sub: 'Grind what matters' },
   { id: 'quests',     label: 'Quests',     sub: 'Habits & missions' },
   { id: 'confidants', label: 'Confidants', sub: 'The bonds that make you' },
   { id: 'journal',    label: 'Journal',    sub: 'Every step you took' },
-  { id: 'system',     label: 'System',     sub: 'Save, load, config' },
+  { id: 'velvet',     label: 'Velvet Room', sub: 'Your weekly appraisal' },
+  { id: 'shop',       label: 'Shop',       sub: 'Treat yourself — you earned it' },
+  { id: 'system',     label: 'System',     sub: 'Save, load, config', menu: false },
 ];
 
 /* ---------- utils ---------- */
@@ -95,6 +100,71 @@ function ransom(text, seed = 1) {
   }).join('')}</span>`;
 }
 
+/* ---------- icons ---------- */
+// Monochrome line icons (24×24, stroke = currentColor). Skills store the key in `icon`.
+const ICONS = {
+  code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+  terminal: '<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>',
+  server: '<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>',
+  cloud: '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.5" stroke-dasharray="3.4 2.5"/>',
+  monitor: '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
+  bolt: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  dumbbell: '<path d="M6 7v10M18 7v10M3 9v6M21 9v6M6 12h12"/>',
+  ball: '<circle cx="12" cy="12" r="10"/><path d="M4.9 4.9c4 4 10.2 4 14.2 0M4.9 19.1c4-4 10.2-4 14.2 0"/>',
+  mountain: '<path d="m8 3 4 8 5-5 5 15H2L8 3z"/>',
+  sword: '<path d="M14.5 17.5 3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.4-.5-2-1-3-1.1-2.1-.2-4.1 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3.2.3 1.6 1.3 2.7 2.5 2.7z"/>',
+  book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z"/><path d="M6.5 17A2.5 2.5 0 0 0 4 19.5 2.5 2.5 0 0 0 6.5 22H20v-5"/>',
+  cap: '<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/>',
+  bulb: '<path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/>',
+  pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z"/>',
+  chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  mask: '<path d="M2 9c0-2 2-3 5-3 2 0 3.5 1 5 2 1.5-1 3-2 5-2 3 0 5 1 5 3 0 4-3 7-6 7-2 0-3-1.5-4-3-1 1.5-2 3-4 3-3 0-6-3-6-7z"/><circle cx="7.5" cy="10.5" r="1.5"/><circle cx="16.5" cy="10.5" r="1.5"/>',
+  shirt: '<path d="M20.4 3.5 16 2a4 4 0 0 1-8 0L3.6 3.5a2 2 0 0 0-1.3 2.2l.6 3.5a1 1 0 0 0 1 .8H6v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V10h2.1a1 1 0 0 0 1-.8l.6-3.5a2 2 0 0 0-1.3-2.2z"/>',
+  crown: '<path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zM5 20h14"/>',
+  star: '<polygon points="12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3 12 2"/>',
+  heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>',
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
+  music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4M8 22h8"/>',
+  camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  brush: '<path d="M18.4 2.6a2 2 0 0 1 2.9 2.9L11 15.8l-2.9-2.9z"/><path d="M8 14c-2 0-3.5 1.5-3.5 3.5 0 1.2-.8 2.2-2 2.5 1 .8 2.4 1 3.5 1 2.5 0 4.5-2 4.5-4.5"/>',
+  gamepad: '<rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/>',
+  chart: '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
+  money: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  utensils: '<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>',
+  leaf: '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10z"/><path d="M2 21c0-3 1.9-5.4 5.2-6"/>',
+  moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+};
+const ICON_KEYS = Object.keys(ICONS);
+const iconSvg = key => ICONS[key]
+  ? `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[key]}</svg>` : '';
+const skillIcon = s => s && ICONS[s.icon] ? iconSvg(s.icon) : '';
+const skillBadge = s => ICONS[s.icon] ? iconSvg(s.icon) : `<b class="sk-mono">${esc((s.name || '?').slice(0, 2).toUpperCase())}</b>`;
+
+// Old saves used emoji / free text. Pick an icon from the old emoji or the skill's name.
+const ICON_GUESS = [
+  [/⚙|devops|ops|infra|k8s|kube|docker/i, 'server'], [/🖥|💻|front|web|code|dev|program|react|js/i, 'code'],
+  [/🏋|💪|sport|gym|fit|workout|train/i, 'dumbbell'], [/run|бег/i, 'flame'], [/🕶|style|fashion|стиль/i, 'mask'],
+  [/📚|📖|read|book|чтен|книг/i, 'book'], [/🤝|❤|help|volunt|kind|помощ/i, 'heart'],
+  [/🎓|univ|study|school|college|учеб|универ|(^|\s)пар[ыа]?(\s|$)/i, 'cap'], [/🎸|🎵|music|guitar|piano|музык/i, 'music'],
+  [/lang|english|язык|🌍/i, 'globe'], [/money|financ|invest|trad|💰|деньг/i, 'chart'],
+  [/cook|food|кух|готов|🍳/i, 'utensils'], [/game|игр|🎮/i, 'gamepad'], [/sleep|сон|😴/i, 'moon'],
+  [/draw|art|design|рис|🎨/i, 'brush'], [/write|blog|писа|✍/i, 'pen'], [/photo|фото|📷/i, 'camera'],
+  [/speak|talk|social|общен/i, 'chat'], [/work|job|career|работ|💼/i, 'briefcase'], [/health|здоров|🌿/i, 'leaf'],
+];
+function guessIcon(s) {
+  if (ICONS[s.icon]) return s.icon;
+  const hay = `${s.icon || ''} ${s.name || ''}`;
+  const hit = ICON_GUESS.find(([re]) => re.test(hay));
+  return hit ? hit[1] : '';
+}
+
 /* ---------- levels & ranks ---------- */
 function levelFrom(xp, base, step, max = 99) {
   let lvl = 1, acc = 0, need = base + step;
@@ -120,22 +190,37 @@ let screen = 'status';
 let D = null; // derived cache, refreshed on render
 let journalLimit = 40;
 
+function reward(name, price, icon, once = false) {
+  return { id: uid(), name, price, icon, once, createdAt: new Date().toISOString() };
+}
+
 function defaultState() {
   const sk = (name, icon, stat) => ({ id: uid(), name, icon, stat, createdAt: new Date().toISOString() });
   const skills = [
-    sk('DevOps', '⚙️', 'proficiency'),
-    sk('Frontend', '🖥️', 'knowledge'),
-    sk('Sports', '🏋️', 'guts'),
-    sk('Style', '🕶️', 'charm'),
-    sk('Reading', '📚', 'knowledge'),
-    sk('Helping Others', '🤝', 'kindness'),
+    sk('DevOps', 'server', 'proficiency'),
+    sk('Frontend', 'code', 'knowledge'),
+    sk('Sports', 'dumbbell', 'guts'),
+    sk('Style', 'mask', 'charm'),
+    sk('Reading', 'book', 'knowledge'),
+    sk('Helping Others', 'heart', 'kindness'),
   ];
   const by = n => 'skill:' + skills.find(s => s.name === n).id;
   const q = (title, type, target, inten) => ({ id: uid(), title, type, target, intensity: inten, deadline: '', createdAt: new Date().toISOString() });
   return {
     version: 1,
     player: { name: 'Joker' },
-    settings: { sound: true },
+    settings: {
+      sound: true, hotkey: true, openAtLogin: false,
+      remindDailies: true, dailiesAt: '21:00', remindBed: true, bedAt: '23:30', remindVelvet: true,
+    },
+    rewards: [
+      reward('Episode of anime / a series', 300, 'monitor'),
+      reward('1 hour of gaming', 500, 'gamepad'),
+      reward('Cheat meal', 1000, 'utensils'),
+      reward('Order food delivery', 1500, 'flame'),
+      reward('New piece of clothing', 8000, 'shirt', true),
+    ],
+    purchases: [],
     skills,
     quests: [
       q('Work out', 'daily', by('Sports'), 'normal'),
@@ -144,6 +229,7 @@ function defaultState() {
       q('Call family', 'weekly', 'stat:kindness', 'normal'),
     ],
     confidants: [],
+    reviews: {},
     log: [],
   };
 }
@@ -155,9 +241,12 @@ function normalize(s) {
     version: 1,
     player: { ...base.player, ...(s.player || {}) },
     settings: { ...base.settings, ...(s.settings || {}) },
-    skills: Array.isArray(s.skills) ? s.skills : base.skills,
+    skills: Array.isArray(s.skills) ? s.skills.map(sk => ({ ...sk, icon: guessIcon(sk) })) : base.skills,
     quests: Array.isArray(s.quests) ? s.quests : base.quests,
     confidants: Array.isArray(s.confidants) ? s.confidants : [],
+    rewards: Array.isArray(s.rewards) ? s.rewards : base.rewards,
+    purchases: Array.isArray(s.purchases) ? s.purchases : [],
+    reviews: s.reviews && typeof s.reviews === 'object' && !Array.isArray(s.reviews) ? s.reviews : {},
     log: Array.isArray(s.log) ? s.log : [],
   };
 }
@@ -174,13 +263,14 @@ function derive() {
   const skillXp = {}, confPts = {}, byDate = {};
   let total = 0;
   for (const e of state.log) {
-    if (e.stat in stats) stats[e.stat] += e.statPts || 0;
-    if (e.skillId) skillXp[e.skillId] = (skillXp[e.skillId] || 0) + (e.xp || 0);
-    if (e.confId) confPts[e.confId] = (confPts[e.confId] || 0) + (e.cpts || 0);
+    for (const [k, v] of Object.entries(entryStats(e))) if (k in stats) stats[k] += v;
+    for (const [id, v] of Object.entries(entrySkills(e))) skillXp[id] = (skillXp[id] || 0) + v;
+    for (const id of entryConfs(e)) confPts[id] = (confPts[id] || 0) + (e.cpts || 0);
     total += e.xp || 0;
     byDate[e.date] = (byDate[e.date] || 0) + (e.xp || 0);
   }
-  return { stats, skillXp, confPts, byDate, total };
+  const spent = state.purchases.reduce((a, p) => a + (p.price || 0), 0);
+  return { stats, skillXp, confPts, byDate, total, yen: total * YEN_PER_XP - spent, spent };
 }
 
 function snapshot() {
@@ -201,17 +291,58 @@ function targetInfo(target) {
   const [kind, id] = String(target || '').split(':');
   if (kind === 'skill') {
     const s = skillById(id);
-    if (s) return { skillId: s.id, stat: s.stat, label: s.name, icon: s.icon };
+    if (s) return { skillId: s.id, stat: s.stat, label: s.name, icon: skillIcon(s) };
   }
-  if (kind === 'stat' && STATS[id]) return { skillId: null, stat: id, label: STATS[id].name, icon: '★' };
-  return { skillId: null, stat: null, label: 'Unknown', icon: '?' };
+  if (kind === 'stat' && STATS[id]) return { skillId: null, stat: id, label: STATS[id].name, icon: iconSvg('star') };
+  return { skillId: null, stat: null, label: 'Unknown', icon: '' };
 }
 
 function entryLabel(e) {
-  if (e.confId) { const c = confById(e.confId); return c ? c.name : 'Former confidant'; }
-  if (e.skillId) { const s = skillById(e.skillId); return s ? s.name : 'Deleted skill'; }
-  if (e.stat) return STATS[e.stat]?.name || '—';
-  return '—';
+  if (e.kind === 'review') return 'Velvet Room';
+  const names = entryTargets(e).map(t => {
+    const [k, id] = t.split(':');
+    return k === 'skill' ? (skillById(id)?.name || 'Deleted skill') : STATS[id]?.name;
+  }).filter(Boolean);
+  const confs = entryConfs(e);
+  if (confs.length) {
+    const who = confs.map(id => confById(id)?.name || 'Former confidant').join(' & ');
+    return [who, ...names].join(' · ');
+  }
+  return names.join(' + ') || '—';
+}
+
+/* ---------- entry gains ----------
+   New entries: { tg: ["skill:<id>"|"stat:<key>"], skills: {id: xp}, stats: {key: pts}, xp }.
+   Old entries: { skillId, stat, statPts, xp }. Readers below handle both. */
+const entrySkills = e => e.skills || (e.skillId ? { [e.skillId]: e.xp || 0 } : {});
+const entryConfs = e => e.confIds || (e.confId ? [e.confId] : []);
+const entryStats = e => e.stats || (e.stat ? { [e.stat]: e.statPts || 0 } : {});
+const entryTargets = e => e.tg || (e.skillId ? ['skill:' + e.skillId] : e.stat && e.kind !== 'hangout' ? ['stat:' + e.stat] : []);
+const statsText = (e, short) => Object.entries(entryStats(e)).filter(([k, v]) => STATS[k] && v)
+  .map(([k, v]) => `${short ? STATS[k].name.slice(0, 4) : STATS[k].name} +${v}`).join(' · ');
+
+// Every chosen skill gets the full XP (focus skills ×1.5). Each social stat gets points once,
+// even when several chosen skills feed it. The player earns the action's XP once.
+function buildGains(targets, baseXp) {
+  const skills = {}, stats = {};
+  let top = 0, bonus = false;
+  for (const t of new Set(targets)) {
+    const [kind, id] = String(t).split(':');
+    if (kind === 'skill') {
+      const s = skillById(id);
+      if (!s) continue;
+      const focus = isFocus(id);
+      const xp = focus ? Math.round(baseXp * FOCUS_MULT) : baseXp;
+      bonus = bonus || focus;
+      skills[id] = xp;
+      stats[s.stat] = Math.max(stats[s.stat] || 0, statPtsFor(xp));
+      top = Math.max(top, xp);
+    } else if (kind === 'stat' && STATS[id]) {
+      stats[id] = Math.max(stats[id] || 0, statPtsFor(baseXp));
+      top = Math.max(top, baseXp);
+    }
+  }
+  return { skills, stats, xp: top, bonus };
 }
 
 /* ---------- actions that change progress ---------- */
@@ -223,7 +354,8 @@ function commit(entry) {
   const after = snapshot();
   sfx.ok();
   const label = entryLabel(e);
-  toast(`+${e.xp} XP`, `${label}${e.stat ? ` · +${e.statPts} ${STATS[e.stat].name}` : ''}`);
+  const st = statsText(e);
+  toast(`+${e.xp} XP`, `${label}${e.bonus ? ' · FOCUS ×1.5' : ''}${st ? ' · ' + st : ''} · +${fmtYen(e.xp * YEN_PER_XP)}`);
   announce(before, after);
   render();
   return e;
@@ -245,10 +377,12 @@ function announce(b, a) {
   if (a.player > b.player) queueRankUp({ kicker: state.player.name, big: 'LEVEL UP!', sub: `Lv ${a.player} — ${titleFor(a.player)}`, player: true });
 }
 
-function logActivity(target, intId, note = '') {
-  const t = targetInfo(target);
+function logActivity(targets, intId, note = '') {
   const I = intensity(intId);
-  commit({ kind: 'activity', skillId: t.skillId, stat: t.stat, xp: I.xp, statPts: statPtsFor(I.xp), intensity: I.id, note });
+  const tg = [...new Set(targets)];
+  const g = buildGains(tg, I.xp);
+  if (!g.xp) return;
+  commit({ kind: 'activity', tg, skills: g.skills, stats: g.stats, xp: g.xp, intensity: I.id, note, ...(g.bonus && { bonus: true }) });
 }
 
 function questCompletion(q) {
@@ -258,13 +392,29 @@ function questCompletion(q) {
     q.type === 'weekly' ? weekKey(parseKey(e.date)) === wk : true));
 }
 
+// Daily quests may run on chosen weekdays only (q.days = [0..6], Sun = 0). Missing = every day.
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const isScheduled = (q, d = new Date()) => q.type !== 'daily' || !q.days || q.days.includes(d.getDay());
+function scheduleLabel(q) {
+  if (q.type !== 'daily' || !q.days || q.days.length === 7) return '';
+  const k = WEEK_ORDER.filter(d => q.days.includes(d)).join();
+  if (k === '1,2,3,4,5') return 'Weekdays';
+  if (k === '6,0') return 'Weekends';
+  return WEEK_ORDER.filter(d => q.days.includes(d)).map(d => DAY_SHORT[d]).join(' ');
+}
+
 function questStreak(q) {
   if (q.type !== 'daily') return 0;
-  const days = new Set(state.log.filter(e => e.questId === q.id).map(e => e.date));
+  const done = new Set(state.log.filter(e => e.questId === q.id).map(e => e.date));
+  if (!done.size) return 0;
   let d = startOfDay();
-  if (!days.has(dkey(d))) d = addDays(d, -1);
+  if (!done.has(dkey(d))) d = addDays(d, -1); // today still open
   let n = 0;
-  while (days.has(dkey(d))) { n++; d = addDays(d, -1); }
+  for (let i = 0; i < 3660; i++, d = addDays(d, -1)) {
+    if (done.has(dkey(d))) n++;
+    else if (isScheduled(q, d)) break; // rest days neither count nor break
+  }
   return n;
 }
 
@@ -286,9 +436,9 @@ function toggleQuest(id) {
     persist(); sfx.back(); render();
     return;
   }
-  const t = targetInfo(q.target);
   const I = intensity(q.intensity);
-  commit({ kind: 'quest', questId: q.id, skillId: t.skillId, stat: t.stat, xp: I.xp, statPts: statPtsFor(I.xp), intensity: I.id, note: q.title });
+  const g = buildGains([q.target], I.xp);
+  commit({ kind: 'quest', questId: q.id, tg: [q.target], skills: g.skills, stats: g.stats, xp: g.xp || I.xp, intensity: I.id, note: q.title, ...(g.bonus && { bonus: true }) });
 }
 
 /* ---------- sound ---------- */
@@ -335,7 +485,7 @@ function showNextRankUp() {
   if (!r) return;
   sfx.rank();
   $('#rankup-root').innerHTML = `
-    <div class="rankup ${r.conf ? 'conf' : ''}" data-act="close-rankup">
+    <div class="rankup ${r.conf ? 'conf' : ''} ${r.velvet ? 'velvet' : ''}" data-act="close-rankup">
       <div class="ru-burst"></div>
       <div class="ru-slash"></div><div class="ru-slash two"></div>
       <div class="ru-content">
@@ -382,20 +532,49 @@ const intSeg = (name, cur) => `<div class="seg int">${INTENSITY.map(i =>
   `<label><input type="radio" name="${name}" value="${i.id}" ${cur === i.id ? 'checked' : ''}><span><b>${i.label}</b><small>+${i.xp} XP · ${i.hint}</small></span></label>`).join('')}</div>`;
 function targetSelect(name, cur) {
   return `<select name="${name}">
-    <optgroup label="Skills">${state.skills.map(s => `<option value="skill:${s.id}" ${cur === 'skill:' + s.id ? 'selected' : ''}>${esc(s.icon || '')} ${esc(s.name)} → ${STATS[s.stat].name}</option>`).join('')}</optgroup>
+    <optgroup label="Skills">${state.skills.map(s => `<option value="skill:${s.id}" ${cur === 'skill:' + s.id ? 'selected' : ''}>${esc(s.name)} → ${STATS[s.stat].name}${isFocus(s.id) ? '  ★ FOCUS ×1.5' : ''}</option>`).join('')}</optgroup>
     <optgroup label="Social stat only">${STAT_ORDER.map(k => `<option value="stat:${k}" ${cur === 'stat:' + k ? 'selected' : ''}>★ ${STATS[k].name}</option>`).join('')}</optgroup>
   </select>`;
 }
 
+function targetChips(name, selected, hideStats = []) {
+  const chip = (v, label, extra = '') => `<label><input type="checkbox" name="${name}" value="${v}" ${selected.includes(v) ? 'checked' : ''}><span>${label}${extra}</span></label>`;
+  return `<div class="tchips">
+    <div class="tc-row"><small>Skills</small>${state.skills.map(s => chip('skill:' + s.id, `${skillIcon(s)}${esc(s.name)}`, isFocus(s.id) ? ' <em>★×1.5</em>' : '')).join('')}</div>
+    <div class="tc-row"><small>Social stat only</small>${STAT_ORDER.filter(k => !hideStats.includes(k)).map(k => chip('stat:' + k, '★ ' + STATS[k].name)).join('')}</div>
+  </div>`;
+}
+
+// Live "you will get" line under a target picker. `fixed` = targets always included (e.g. confidant's stat).
+// `fixed(fd)` returns targets always included (e.g. the confidants' stats).
+function bindGainPreview(root, fixed = () => []) {
+  const f = root.querySelector('form'), out = root.querySelector('.gain-preview');
+  const update = () => {
+    const fd = new FormData(f);
+    const I = intensity(fd.get('int'));
+    const g = buildGains([...fd.getAll('target'), ...fixed(fd)], I.xp);
+    const parts = [
+      ...fd.getAll('conf').map(id => `<b>${esc(confById(id)?.name)}</b> bond +${I.cpts}`),
+      ...Object.entries(g.skills).map(([id, xp]) => `<b>${esc(skillById(id).name)}</b> +${xp}`),
+      ...Object.entries(g.stats).map(([k, v]) => `${STATS[k].name} +${v}`),
+    ];
+    out.innerHTML = parts.length ? `You get: ${parts.join(' · ')} · <b>Player +${g.xp} XP</b>` : '<i>Pick at least one skill or stat.</i>';
+    out.classList.toggle('empty', !parts.length);
+  };
+  f.addEventListener('change', update);
+  update();
+}
+
 function openQuickLog(preTarget) {
   const last = [...state.log].reverse().find(e => e.kind === 'activity');
-  const cur = preTarget || (last ? (last.skillId ? 'skill:' + last.skillId : 'stat:' + last.stat) : (state.skills[0] ? 'skill:' + state.skills[0].id : 'stat:knowledge'));
+  const cur = preTarget ? [preTarget] : last ? entryTargets(last) : state.skills[0] ? ['skill:' + state.skills[0].id] : ['stat:knowledge'];
   openModal(`
     <h2 class="m-title">${ransom('TAKE ACTION', 11)}</h2>
-    <p class="m-sub">How did you spend your time?</p>
+    <p class="m-sub">How did you spend your time? Pick everything it trained.</p>
     <form id="ql">
-      <label class="fld"><span>Activity</span>${targetSelect('target', cur)}</label>
+      <div class="fld"><span>Trains</span>${targetChips('target', cur)}</div>
       <div class="fld"><span>Effort</span>${intSeg('int', 'normal')}</div>
+      <div class="gain-preview"></div>
       <label class="fld"><span>Note <i>(optional)</i></span><textarea name="note" rows="2" maxlength="280" placeholder="Deployed the k8s cluster, finally."></textarea></label>
       <div class="m-actions">
         <button type="button" class="btn ghost" data-act="close-modal">Cancel</button>
@@ -403,11 +582,14 @@ function openQuickLog(preTarget) {
       </div>
     </form>`, root => {
     const f = root.querySelector('form');
+    bindGainPreview(root);
     f.onsubmit = e => {
       e.preventDefault();
       const fd = new FormData(f);
+      const tg = fd.getAll('target');
+      if (!tg.length) { toast('PICK ONE', 'Choose at least one skill or stat'); return; }
       closeModal();
-      logActivity(fd.get('target'), fd.get('int'), String(fd.get('note') || '').trim());
+      logActivity(tg, fd.get('int'), String(fd.get('note') || '').trim());
     };
     f.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) f.requestSubmit(); });
   });
@@ -419,7 +601,12 @@ function skillModal(id) {
     <h2 class="m-title">${ransom(id ? 'EDIT SKILL' : 'NEW SKILL', 5)}</h2>
     <form>
       <label class="fld"><span>Name</span><input name="name" required maxlength="40" value="${esc(s.name)}" placeholder="Guitar, Cooking, Rust…"></label>
-      <label class="fld"><span>Icon <i>(emoji or letters)</i></span><input name="icon" maxlength="4" value="${esc(s.icon)}" placeholder="🎸"></label>
+      <div class="fld"><span>Icon <i>(optional — none shows the first letters)</i></span>
+        <div class="icon-grid">
+          <label title="Letters"><input type="radio" name="icon" value="" ${!ICONS[s.icon] ? 'checked' : ''}><span class="sk-mono">${esc((s.name || 'Ab').slice(0, 2).toUpperCase())}</span></label>
+          ${ICON_KEYS.map(k => `<label title="${k}"><input type="radio" name="icon" value="${k}" ${s.icon === k ? 'checked' : ''}><span>${iconSvg(k)}</span></label>`).join('')}
+        </div>
+      </div>
       <div class="fld"><span>Feeds social stat</span>${statSeg('stat', s.stat)}</div>
       <div class="m-actions">
         <button type="button" class="btn ghost" data-act="close-modal">Cancel</button>
@@ -429,7 +616,7 @@ function skillModal(id) {
     root.querySelector('form').onsubmit = e => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      const data = { name: String(fd.get('name')).trim(), icon: String(fd.get('icon')).trim(), stat: fd.get('stat') || 'proficiency' };
+      const data = { name: String(fd.get('name')).trim(), icon: ICONS[fd.get('icon')] ? fd.get('icon') : '', stat: fd.get('stat') || 'proficiency' };
       if (id) Object.assign(s, data);
       else state.skills.push({ id: uid(), createdAt: new Date().toISOString(), ...data });
       persist(); closeModal(); sfx.ok(); render();
@@ -451,6 +638,14 @@ function questModal(id, presetType) {
         `<label><input type="radio" name="type" value="${v}" ${q.type === v ? 'checked' : ''}><span><b>${l}</b><small>${h}</small></span></label>`).join('')}</div></div>
       <label class="fld"><span>Rewards</span>${targetSelect('target', q.target)}</label>
       <div class="fld"><span>Reward size</span>${intSeg('int', q.intensity)}</div>
+      <div class="fld days-fld"><span>Repeat on</span>
+        <div class="seg days">${WEEK_ORDER.map(d => `<label><input type="checkbox" name="days" value="${d}" ${!q.days || q.days.includes(d) ? 'checked' : ''}><span>${DAY_SHORT[d]}</span></label>`).join('')}</div>
+        <div class="day-presets">
+          <button type="button" class="btn small ghost" data-days="0,1,2,3,4,5,6">Every day</button>
+          <button type="button" class="btn small ghost" data-days="1,2,3,4,5">Weekdays</button>
+          <button type="button" class="btn small ghost" data-days="6,0">Weekends</button>
+        </div>
+      </div>
       <label class="fld deadline-fld"><span>Deadline <i>(missions only, optional)</i></span><input type="date" name="deadline" value="${esc(q.deadline || '')}"></label>
       <div class="m-actions">
         <button type="button" class="btn ghost" data-act="close-modal">Cancel</button>
@@ -458,16 +653,28 @@ function questModal(id, presetType) {
       </div>
     </form>`, root => {
     const f = root.querySelector('form');
-    const sync = () => root.querySelector('.deadline-fld').classList.toggle('hidden', new FormData(f).get('type') !== 'once');
+    const sync = () => {
+      const type = new FormData(f).get('type');
+      root.querySelector('.deadline-fld').classList.toggle('hidden', type !== 'once');
+      root.querySelector('.days-fld').classList.toggle('hidden', type !== 'daily');
+    };
     f.addEventListener('change', sync); sync();
+    root.querySelectorAll('[data-days]').forEach(b => b.onclick = () => {
+      const on = b.dataset.days.split(',');
+      f.querySelectorAll('input[name=days]').forEach(c => { c.checked = on.includes(c.value); });
+    });
     f.onsubmit = e => {
       e.preventDefault();
       const fd = new FormData(f);
+      const days = fd.getAll('days').map(Number);
+      if (fd.get('type') === 'daily' && !days.length) { toast('NO DAYS', 'Pick at least one day'); return; }
       const data = {
         title: String(fd.get('title')).trim(), type: fd.get('type'), target: fd.get('target'),
         intensity: fd.get('int'), deadline: fd.get('type') === 'once' ? String(fd.get('deadline') || '') : '',
+        days: fd.get('type') === 'daily' && days.length < 7 ? days : undefined,
       };
       if (id) Object.assign(q, data);
+      if (id && !data.days) delete q.days;
       else state.quests.push({ id: uid(), createdAt: new Date().toISOString(), ...data });
       persist(); closeModal(); sfx.ok(); render();
     };
@@ -501,26 +708,39 @@ function confModal(id) {
   });
 }
 
+// One meeting can include several confidants: each gets full bond points,
+// their stats are credited once each, and the player earns the XP once.
 function hangoutModal(id) {
-  const c = confById(id);
-  if (!c) return;
+  if (!state.confidants.length) return;
+  const first = id ? confById(id) : null;
+  const confStats = fd => fd.getAll('conf').map(cid => confById(cid)).filter(Boolean).map(c => 'stat:' + c.stat);
   openModal(`
     <h2 class="m-title">${ransom('HANG OUT', 17)}</h2>
-    <p class="m-sub">Spend time with <b>${esc(c.name)}</b> · ${esc(arcanaOf(c)[0])} ${esc(c.arcana)}</p>
+    <p class="m-sub">Who was there? Everyone you pick grows closer.</p>
     <form>
+      <div class="fld"><span>With</span><div class="tchips"><div class="tc-row">${state.confidants.map(c =>
+        `<label><input type="checkbox" name="conf" value="${c.id}" ${c.id === id ? 'checked' : ''}><span>${esc(arcanaOf(c)[0])} ${esc(c.name)}</span></label>`).join('')}</div></div></div>
       <div class="fld"><span>How deep?</span>${intSeg('int', 'normal')}</div>
+      <div class="fld"><span>Also trained <i>(optional · their stats are always included)</i></span>${targetChips('target', first?.lastTg || [])}</div>
+      <div class="gain-preview"></div>
       <label class="fld"><span>What happened <i>(optional)</i></span><textarea name="note" rows="2" maxlength="280" placeholder="Ramen and a long talk about the future."></textarea></label>
       <div class="m-actions">
         <button type="button" class="btn ghost" data-act="close-modal">Cancel</button>
         <button class="btn primary">Spend time</button>
       </div>
     </form>`, root => {
+    bindGainPreview(root, confStats);
     root.querySelector('form').onsubmit = e => {
       e.preventDefault();
       const fd = new FormData(e.target);
+      const confIds = fd.getAll('conf').map(String);
+      if (!confIds.length) { toast('WITH WHOM?', 'Pick at least one confidant'); return; }
       const I = intensity(fd.get('int'));
+      const extra = fd.getAll('target');
+      const g = buildGains([...extra, ...confStats(fd)], I.xp);
+      for (const cid of confIds) { const c = confById(cid); if (c) c.lastTg = extra; }
       closeModal();
-      commit({ kind: 'hangout', confId: c.id, stat: c.stat, xp: I.xp, statPts: statPtsFor(I.xp), cpts: I.cpts, intensity: I.id, note: String(fd.get('note') || '').trim() });
+      commit({ kind: 'hangout', confIds, tg: extra, skills: g.skills, stats: g.stats, xp: g.xp, cpts: I.cpts, intensity: I.id, note: String(fd.get('note') || '').trim(), ...(g.bonus && { bonus: true }) });
     };
   });
 }
@@ -528,9 +748,9 @@ function hangoutModal(id) {
 /* ---------- shared view bits ---------- */
 const bar = (pct, cls = '') => `<div class="bar ${cls}"><i style="width:${Math.max(0, Math.min(1, pct)) * 100}%"></i></div>`;
 const pips = (n, total) => `<div class="pips">${Array.from({ length: total }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</div>`;
-function head(id) {
+function head(id, quote) {
   const s = SCREENS.find(x => x.id === id);
-  const q = QUOTES[(new Date().getDate() + SCREENS.indexOf(s)) % QUOTES.length];
+  const q = quote || QUOTES[(new Date().getDate() + SCREENS.indexOf(s)) % QUOTES.length];
   return `<header class="scr-head"><h1>${ransom(s.label.toUpperCase(), SCREENS.indexOf(s) + 2)}</h1><div class="scr-sub"><span>${esc(s.sub)}</span><em>“${esc(q)}”</em></div></header>`;
 }
 const empty = (big, small, act, btn) => `<div class="empty"><b>${esc(big)}</b><span>${esc(small)}</span>${act ? `<button class="btn primary" data-act="${act}">${esc(btn)}</button>` : ''}</div>`;
@@ -582,7 +802,7 @@ function scrStatus() {
   const today = dkey();
   const todayXp = D.byDate[today] || 0;
   const todayCount = state.log.filter(e => e.date === today).length;
-  const dailies = state.quests.filter(q => q.type === 'daily');
+  const dailies = state.quests.filter(q => q.type === 'daily' && (isScheduled(q) || questCompletion(q)));
   const missions = state.quests.filter(q => q.type === 'once' && q.deadline && !questCompletion(q))
     .sort((a, b) => a.deadline.localeCompare(b.deadline));
   const m = missions[0];
@@ -652,10 +872,11 @@ function scrSkills() {
   const cards = state.skills.map(s => {
     const xp = D.skillXp[s.id] || 0;
     const L = skillLevel(xp);
-    const tXp = state.log.filter(e => e.skillId === s.id && e.date === today).reduce((a, e) => a + e.xp, 0);
-    return `<div class="skill-card">
+    const tXp = state.log.filter(e => e.date === today).reduce((a, e) => a + (entrySkills(e)[s.id] || 0), 0);
+    const focus = isFocus(s.id);
+    return `<div class="skill-card ${focus ? 'focus' : ''}">
       <div class="sk-top">
-        <div class="sk-icon">${esc(s.icon || s.name.slice(0, 2).toUpperCase())}</div>
+        <div class="sk-icon">${skillBadge(s)}</div>
         <div class="sk-name">${esc(s.name)}</div>
         <div class="sk-tools">
           <button class="ic" title="Edit" data-act="edit-skill" data-id="${s.id}">✎</button>
@@ -666,6 +887,7 @@ function scrSkills() {
         <div class="sk-lv"><span>LV</span><b>${L.lvl}</b></div>
         <div class="sk-info">
           <div class="sk-feeds">feeds <b>${STATS[s.stat].name}</b></div>
+          ${focus ? '<div class="sk-focus">★ Focus ×1.5</div>' : ''}
           ${tXp ? `<div class="sk-today">+${tXp} today</div>` : ''}
         </div>
       </div>
@@ -691,11 +913,15 @@ function questRow(q) {
     const n = daysUntil(q.deadline);
     dl = `<span class="chip ${n <= 2 ? 'hot' : ''}">${n < 0 ? `${-n}d overdue` : n === 0 ? 'due today' : `D-${n}`} · ${fmtMD(q.deadline)}</span>`;
   }
-  return `<div class="quest ${done ? 'done' : ''}">
+  const sched = scheduleLabel(q);
+  const rest = !done && !isScheduled(q);
+  return `<div class="quest ${done ? 'done' : ''} ${rest ? 'rest' : ''}">
     <button class="q-check" data-act="toggle-quest" data-id="${q.id}" title="${done ? 'Undo' : 'Complete'}"><i></i></button>
     <div class="q-body">
       <div class="q-title">${esc(q.title)}</div>
-      <div class="q-meta"><span class="chip">+${I.xp} XP</span><span class="chip ghost">${esc(t.icon || '')} ${esc(t.label)}</span>
+      <div class="q-meta"><span class="chip">+${I.xp} XP</span><span class="chip ghost">${t.icon}${esc(t.label)}</span>
+        ${sched ? `<span class="chip ghost">↻ ${esc(sched)}</span>` : ''}
+        ${rest ? '<span class="chip rest">rest day</span>' : ''}
         ${streak ? `<span class="chip fire">🔥 ${streak}</span>` : ''}${dl}
         ${done && q.type === 'once' ? `<span class="chip ghost">cleared ${fmtMD(done.date)}</span>` : ''}</div>
     </div>
@@ -719,7 +945,7 @@ function scrQuests() {
   return `${head('quests')}
   <div class="quest-cols">
     <div>
-      ${section('Daily', `${daily.filter(q => questCompletion(q)).length}/${daily.length} today`, daily, 'daily', 'Small things, every day. That’s how hearts get stolen.')}
+      ${section('Daily', `${daily.filter(q => questCompletion(q)).length}/${daily.filter(q => isScheduled(q) || questCompletion(q)).length} today`, daily, 'daily', 'Small things, every day. That’s how hearts get stolen.')}
       ${section('Weekly', 'resets Monday', weekly, 'weekly', 'Nothing weekly yet.')}
     </div>
     <div>
@@ -733,7 +959,7 @@ function scrConfidants() {
   const cards = state.confidants.map(c => {
     const r = confRank(D.confPts[c.id] || 0);
     const [num, name] = arcanaOf(c);
-    const last = [...state.log].reverse().find(e => e.confId === c.id);
+    const last = [...state.log].reverse().find(e => entryConfs(e).includes(c.id));
     const since = last ? -daysUntil(last.date) : null;
     return `<div class="conf-card">
       <div class="arcana"><span class="ar-num">${esc(num)}</span><span class="ar-name">${esc(name)}</span></div>
@@ -750,6 +976,7 @@ function scrConfidants() {
     </div>`;
   }).join('');
   return `${head('confidants')}
+  ${state.confidants.length > 1 ? '<div class="conf-bar"><button class="btn primary" data-act="hangout">Group hangout</button></div>' : ''}
   ${state.confidants.length ? `<div class="conf-grid">${cards}<button class="skill-add" data-act="add-conf"><b>+</b><span>NEW CONFIDANT</span></button></div>`
     : empty('No confidants yet.', 'Friends, family, mentors — the people you want to grow closer to. Each bond has 10 ranks.', 'add-conf', '+ Add your first confidant')}`;
 }
@@ -762,7 +989,7 @@ function scrJournal() {
     if (!groups.length || groups[groups.length - 1].date !== e.date) groups.push({ date: e.date, items: [] });
     groups[groups.length - 1].items.push(e);
   }
-  const kindTag = { activity: 'ACTION', quest: 'QUEST', hangout: 'BOND' };
+  const kindTag = { activity: 'ACTION', quest: 'QUEST', hangout: 'BOND', review: 'VELVET' };
   const body = groups.map(g => {
     const dt = parseKey(g.date);
     const xp = D.byDate[g.date] || 0;
@@ -773,7 +1000,7 @@ function scrJournal() {
           <span class="j-time">${fmtTime(e.ts)}</span>
           <span class="j-kind ${e.kind}">${kindTag[e.kind] || 'ACTION'}</span>
           <span class="j-label">${esc(entryLabel(e))}${e.note ? ` — <i>${esc(e.note)}</i>` : ''}</span>
-          <span class="j-xp">+${e.xp}${e.stat ? ` · ${STATS[e.stat].name.slice(0, 4)} +${e.statPts}` : ''}</span>
+          <span class="j-xp">+${e.xp}${statsText(e, true) ? ' · ' + statsText(e, true) : ''}</span>
           <button class="ic" data-act="del-entry" data-id="${e.id}" title="Delete (undo)">✕</button>
         </div>`).join('')}</div>
     </div>`;
@@ -791,7 +1018,19 @@ function scrSystem() {
     <section class="panel">
       <div class="tag">PLAYER</div>
       <label class="fld"><span>Codename</span><input id="sys-name" maxlength="30" value="${esc(state.player.name)}"></label>
-      <label class="toggle"><input type="checkbox" id="sys-sound" ${state.settings.sound ? 'checked' : ''}><span></span>Sound effects</label>
+      <label class="toggle"><input type="checkbox" data-setting="sound" ${state.settings.sound ? 'checked' : ''}><span></span>Sound effects</label>
+      <label class="toggle"><input type="checkbox" data-setting="hotkey" ${state.settings.hotkey !== false ? 'checked' : ''}><span></span>Global shortcut <kbd>⌘⇧L</kbd> opens Take Action from any app</label>
+      <label class="toggle"><input type="checkbox" data-setting="openAtLogin" ${state.settings.openAtLogin ? 'checked' : ''}><span></span>Start at login (quietly, in the Dock)</label>
+    </section>
+    <section class="panel morgana">
+      <div class="tag">MORGANA · REMINDERS</div>
+      <label class="toggle"><input type="checkbox" data-setting="remindDailies" ${state.settings.remindDailies !== false ? 'checked' : ''}><span></span>Unfinished dailies at
+        <input type="time" class="time-in" data-setting="dailiesAt" value="${esc(state.settings.dailiesAt || '21:00')}"></label>
+      <label class="toggle"><input type="checkbox" data-setting="remindBed" ${state.settings.remindBed !== false ? 'checked' : ''}><span></span>“Let's go to sleep” at
+        <input type="time" class="time-in" data-setting="bedAt" value="${esc(state.settings.bedAt || '23:30')}"></label>
+      <label class="toggle"><input type="checkbox" data-setting="remindVelvet" ${state.settings.remindVelvet !== false ? 'checked' : ''}><span></span>Velvet Room on Sundays at 19:00</label>
+      <p class="muted">Works while Phantom Life is running — closing the window is fine, <kbd>⌘Q</kbd> stops it. Turn on “Start at login” to never miss one.</p>
+      <div class="btn-row"><button class="btn" data-act="test-notify">Test Morgana</button></div>
     </section>
     <section class="panel">
       <div class="tag">SAVE DATA</div>
@@ -810,8 +1049,10 @@ function scrSystem() {
         <li><b>Skills</b> level up from XP, and every action also feeds the skill’s <b>social stat</b> (XP ÷ 5).</li>
         <li><b>Social stats</b> rank up at ${STAT_T.slice(1).join(' / ')} points — just like the game, rank 5 takes real dedication.</li>
         <li><b>Confidants</b> have 10 ranks. Deeper hangouts build the bond faster.</li>
+        <li><b>Velvet Room</b> — review your week, seal a contract (+50 XP) and pick up to 3 focus skills that earn ×1.5 XP the following week.</li>
+        <li><b>Shop</b> — every XP also pays ¥${YEN_PER_XP}. Spend it on rewards you define.</li>
         <li>Made a mistake? Delete it in the <b>Journal</b> — everything recalculates.</li>
-        <li>Keys: <kbd>1</kbd>–<kbd>6</kbd> switch screens · <kbd>L</kbd> take action · <kbd>Esc</kbd> close.</li>
+        <li>Keys: <kbd>1</kbd>–<kbd>7</kbd> switch screens · <kbd>⌘,</kbd> System · <kbd>⌘⇧L</kbd> take action from anywhere · <kbd>L</kbd> take action · <kbd>Esc</kbd> close.</li>
       </ul>
     </section>
     <section class="panel danger-zone">
@@ -822,7 +1063,333 @@ function scrSystem() {
   </div>`;
 }
 
-const SCREEN_FN = { status: scrStatus, skills: scrSkills, quests: scrQuests, confidants: scrConfidants, journal: scrJournal, system: scrSystem };
+/* ---------- velvet room ---------- */
+const FOCUS_MULT = 1.5;
+const GRADES = ['S', 'A', 'B', 'C', 'D'];
+let velvetWeek = null;
+const velvetDraft = {}; // unsaved contract text per week, survives re-renders
+const prevWeek = wk => dkey(addDays(parseKey(wk), -7));
+const nextWeek = wk => dkey(addDays(parseKey(wk), 7));
+// Focus picked in last week's contract applies to this week.
+const focusSkills = (d = new Date()) => state.reviews[prevWeek(weekKey(d))]?.focus || [];
+const isFocus = id => !!id && focusSkills().includes(id);
+
+function pendingReviewWeek() {
+  const now = new Date(), dw = now.getDay();
+  const cur = weekKey(now), prev = prevWeek(cur);
+  if ((dw === 0 || dw >= 5) && !state.reviews[cur]) return cur;
+  if ((dw === 1 || dw === 2) && !state.reviews[prev] && state.log.some(e => weekKey(parseKey(e.date)) === prev)) return prev;
+  return null;
+}
+
+function weekStats(wk) {
+  const start = parseKey(wk);
+  const days = new Set(Array.from({ length: 7 }, (_, i) => dkey(addDays(start, i))));
+  const acts = state.log.filter(e => days.has(e.date) && e.kind !== 'review');
+  const stats = Object.fromEntries(STAT_ORDER.map(k => [k, 0]));
+  const skills = {};
+  for (const e of acts) {
+    for (const [k, v] of Object.entries(entryStats(e))) if (k in stats) stats[k] += v;
+    for (const [id, v] of Object.entries(entrySkills(e))) skills[id] = (skills[id] || 0) + v;
+  }
+  const elapsed = Math.max(1, Math.min(7, Math.round((startOfDay() - start) / 86400000) + 1));
+  const dailyQs = state.quests.filter(q => q.type === 'daily');
+  const dailyIds = new Set(dailyQs.map(q => q.id));
+  const dailyDone = acts.filter(e => dailyIds.has(e.questId)).length;
+  let dailyPossible = 0;
+  for (let i = 0; i < elapsed; i++) dailyPossible += dailyQs.filter(q => isScheduled(q, addDays(start, i))).length;
+  return {
+    start, end: addDays(start, 6), elapsed, stats, skills,
+    xp: acts.reduce((a, e) => a + e.xp, 0),
+    get pace() { return this.xp / this.elapsed; }, // XP per day, fair for an unfinished week
+    actions: acts.length,
+    activeDays: new Set(acts.map(e => e.date)).size,
+    dailyRate: dailyPossible ? Math.min(1, dailyDone / dailyPossible) : null,
+  };
+}
+
+// Days between the last matching entry (on/before endKey) and endKey; null if never.
+function daysSince(pred, endKey) {
+  let last = null;
+  for (const e of state.log) if (e.date <= endKey && pred(e) && (!last || e.date > last)) last = e.date;
+  return last ? Math.round((parseKey(endKey) - parseKey(last)) / 86400000) : null;
+}
+
+function igorLines(wk, W, P, rev) {
+  const b = s => `<b>${esc(s)}</b>`;
+  const today = dkey();
+  const endKey = dkey(W.end) < today ? dkey(W.end) : today;
+  const isCur = wk === weekKey(new Date());
+  const L = [isCur
+    ? 'Welcome to the Velvet Room. Let us look upon the week that is still unfolding...'
+    : `Welcome to the Velvet Room. Let us look back upon the week of ${b(fmtMD(wk))}.`];
+
+  if (!W.actions) {
+    L.push('Hm... not a single action recorded. Even a prisoner paces his cell, Trickster.');
+  } else {
+    if (P.xp > 0) {
+      const d = Math.round((W.pace - P.pace) / P.pace * 100);
+      const per = isCur ? ' per day' : '';
+      if (d >= 15) L.push(`You earned ${b(W.xp + ' XP')}, ${b(d + '%')} more${per} than the week before. Your rehabilitation proceeds splendidly.`);
+      else if (d <= -15) L.push(`${b(W.xp + ' XP')} so far, ${b(-d + '%')} less${per} than before. A lull... or the first sign of distortion?`);
+      else L.push(`${b(W.xp + ' XP')}, keeping pace with the week before. Consistency is its own kind of power.`);
+    } else {
+      L.push(`You earned ${b(W.xp + ' XP')} across ${b(W.actions + ' actions')}. A fine beginning.`);
+    }
+    L.push(`You acted on ${b(W.activeDays + ' of ' + W.elapsed)} days.${W.activeDays === W.elapsed && W.elapsed >= 5 ? ' Not a single day wasted. Remarkable.' : ''}`);
+    const [topStat, topVal] = Object.entries(W.stats).sort((a, b2) => b2[1] - a[1])[0];
+    if (topVal > 0) L.push(`Your ${b(STATS[topStat].name)} grew the most (+${topVal}).`);
+    const topSkill = Object.entries(W.skills).sort((a, b2) => b2[1] - a[1])[0];
+    if (topSkill && skillById(topSkill[0])) L.push(`${b(skillById(topSkill[0]).name)} was your sharpest weapon.`);
+  }
+
+  if (W.dailyRate !== null && W.actions) {
+    const pct = Math.round(W.dailyRate * 100);
+    if (pct >= 80) L.push(`Your daily rituals held firm: ${b(pct + '%')} kept.`);
+    else if (pct < 40) L.push(`Your daily vows slipped. Only ${b(pct + '%')} kept. Perhaps they ask too much... or you, too little.`);
+  }
+
+  const focus = state.reviews[prevWeek(wk)]?.focus || [];
+  for (const id of focus) {
+    const s = skillById(id);
+    if (!s) continue;
+    const xp = W.skills[id] || 0;
+    L.push(xp ? `You swore to focus on ${b(s.name)}, and it received ${b(xp + ' XP')}. A promise kept.` : `You swore to focus on ${b(s.name)}... and did not. Hm hm hm.`);
+  }
+
+  const old = s => Math.round((parseKey(endKey) - new Date(s.createdAt || 0)) / 86400000) >= 14;
+  const dusty = state.skills
+    .filter(s => !focus.includes(s.id) && old(s))
+    .map(s => [s, daysSince(e => s.id in entrySkills(e), endKey)])
+    .filter(([, d]) => d === null || d >= 14)
+    .slice(0, 2);
+  for (const [s, d] of dusty) L.push(`${b(s.name)} gathers dust${d === null ? ', never once practiced' : `, ${d} days untouched`}.`);
+
+  const distant = state.confidants
+    .filter(old)
+    .map(c => [c, daysSince(e => entryConfs(e).includes(c.id), endKey)])
+    .filter(([, d]) => d === null || d >= 14)
+    .slice(0, 2);
+  for (const [c, d] of distant) L.push(`You have not seen ${b(c.name)} ${d === null ? 'since you met' : `in ${d} days`}. A bond untended does not grow.`);
+
+  if (isCur || wk === prevWeek(weekKey(new Date()))) {
+    const due = state.quests.filter(q => q.type === 'once' && q.deadline && !questCompletion(q))
+      .map(q => [q, daysUntil(q.deadline)]).filter(([, n]) => n >= 0 && n <= 10).sort((a, b2) => a[1] - b2[1])[0];
+    if (due) L.push(`A deadline approaches: ${b(due[0].title)}, ${due[1] === 0 ? 'today' : `in ${due[1]} day${due[1] === 1 ? '' : 's'}`}.`);
+  }
+
+  L.push(rev
+    ? 'Your contract for this week is sealed. Return when the next week ends.'
+    : 'Now then... reflect, and choose where your strength will flow next week.');
+  return L;
+}
+
+function readContract(f) {
+  const fd = new FormData(f);
+  return {
+    grade: fd.get('grade') || '',
+    well: String(fd.get('well') || ''), held: String(fd.get('held') || ''), next: String(fd.get('next') || ''),
+    focus: fd.getAll('focus').map(String),
+  };
+}
+
+function sealContract(f) {
+  const wk = f.dataset.week;
+  const data = readContract(f);
+  data.focus = data.focus.slice(0, 3);
+  for (const k of ['well', 'held', 'next']) data[k] = data[k].trim();
+  const existing = state.reviews[wk];
+  const now = new Date().toISOString();
+  state.reviews[wk] = { ...existing, ...data, completedAt: existing?.completedAt || now, updatedAt: now };
+  delete velvetDraft[wk];
+  if (state.log.some(e => e.kind === 'review' && e.week === wk)) {
+    persist(); sfx.ok(); render(); toast('AMENDED', 'The contract has been rewritten');
+    return;
+  }
+  commit({ kind: 'review', week: wk, xp: 50, statPts: 0, note: `Weekly contract · week of ${fmtMD(wk)}` });
+  const names = data.focus.map(id => skillById(id)?.name).filter(Boolean);
+  queueRankUp({ kicker: 'Velvet Room', big: 'SEALED!', sub: names.length ? `Focus: ${names.join(' · ')}` : '+50 XP', velvet: true });
+}
+
+function scrVelvet() {
+  const cur = weekKey(new Date());
+  const wk = velvetWeek || cur;
+  const W = weekStats(wk), P = weekStats(prevWeek(wk));
+  const rev = state.reviews[wk];
+  const draft = velvetDraft[wk] || {};
+  const val = k => draft[k] ?? rev?.[k] ?? '';
+  const focusSel = draft.focus || rev?.focus || [];
+  const grade = val('grade');
+  const statMax = Math.max(1, ...Object.values(W.stats));
+  const topSkills = Object.entries(W.skills).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const delta = P.xp ? Math.round((W.pace - P.pace) / P.pace * 100) : null;
+  const past = Object.keys(state.reviews).sort().reverse();
+  const q = (name, label, ph) => `<label class="fld"><span>${label}</span><textarea name="${name}" rows="4" maxlength="1200" placeholder="${ph}">${esc(val(name))}</textarea></label>`;
+
+  return `<div class="velvet">
+    ${head('velvet', 'Welcome to the Velvet Room.')}
+    <div class="vr-weeknav">
+      <button class="vr-arrow" data-act="vr-week" data-dir="-1" title="Previous week">◀</button>
+      <div class="vr-week"><span>WEEK OF</span><b>${fmtMD(wk)} – ${fmtMD(dkey(W.end))}</b></div>
+      <button class="vr-arrow" data-act="vr-week" data-dir="1" title="Next week" ${wk >= cur ? 'disabled' : ''}>▶</button>
+      <span class="vr-status ${rev ? 'done' : ''}">${rev ? `Appraised · Grade ${esc(rev.grade || '—')}` : 'Awaiting appraisal'}</span>
+    </div>
+
+    <div class="vr-grid">
+      <section class="vr-stage">
+        <div class="vr-curtain l"></div><div class="vr-curtain r"></div>
+        <div class="vr-igor"><img src="assets/igor.jpg" alt="Igor" draggable="false"></div>
+        <div class="vr-dialog"><div class="vr-name">IGOR</div>
+          ${igorLines(wk, W, P, rev).map((l, i) => `<p style="--d:${(i * 0.35).toFixed(2)}s">${l}</p>`).join('')}
+        </div>
+      </section>
+      <section class="vr-ledger">
+        <div class="vr-tag">LEDGER</div>
+        <div class="vr-nums">
+          <div><b>${W.xp}</b><span>XP${delta === null ? '' : `<em title="XP per day vs previous week" class="${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta)}%</em>`}</span></div>
+          <div><b>${W.actions}</b><span>actions</span></div>
+          <div><b>${W.activeDays}/${W.elapsed}</b><span>active days</span></div>
+          <div><b>${W.dailyRate === null ? '—' : Math.round(W.dailyRate * 100) + '%'}</b><span>dailies kept</span></div>
+        </div>
+        <div><div class="vr-sub">STAT GROWTH</div>
+        ${STAT_ORDER.map(k => `<div class="vr-statbar"><span>${STATS[k].name}</span><div><i style="width:${W.stats[k] / statMax * 100}%"></i></div><b>+${W.stats[k]}</b></div>`).join('')}
+        </div>
+        <div><div class="vr-sub">STRONGEST ARTS</div>
+        ${topSkills.length ? topSkills.map(([id, xp]) => { const s = skillById(id); return `<div class="vr-skill"><span>${skillIcon(s)}${esc(s?.name || 'Deleted skill')}</span><b>${xp} XP</b></div>`; }).join('') : '<div class="vr-muted">Nothing yet.</div>'}
+        </div>
+      </section>
+    </div>
+
+    <form class="vr-contract" id="vr-form" data-week="${wk}">
+      <div class="vr-seal">${rev ? '✓' : '§'}</div>
+      <div class="vr-tag">THE CONTRACT</div>
+      <h3>Reflect, then bind yourself to the week ahead.</h3>
+      <div class="fld"><span>Grade this week</span><div class="vr-grades">${GRADES.map(g => `<label><input type="radio" name="grade" value="${g}" ${grade === g ? 'checked' : ''}><span>${g}</span></label>`).join('')}</div></div>
+      <div class="vr-qs">
+        ${q('well', 'What went well?', 'Shipped the feature. Slept 8h.')}
+        ${q('held', 'What held you back?', 'Doomscrolling after midnight.')}
+        ${q('next', 'Next week, I will…', 'Train 4 times. Finish chapter 3.')}
+      </div>
+      <div class="fld"><span>Focus arts for next week <i>— up to 3 · they earn ×${FOCUS_MULT} XP</i></span>
+        <div class="vr-focus">${state.skills.map(s => `<label><input type="checkbox" name="focus" value="${s.id}" ${focusSel.includes(s.id) ? 'checked' : ''}><span>${skillIcon(s)}${esc(s.name)}</span></label>`).join('')}</div>
+      </div>
+      <div class="vr-actions">
+        <span class="vr-muted">${rev ? `Sealed ${fmtMD(dkey(new Date(rev.completedAt)))}. You may amend it.` : 'Sealing the contract grants +50 XP.'}</span>
+        <button class="btn vr-btn">${rev ? 'Amend contract' : 'Seal the contract'}</button>
+      </div>
+    </form>
+
+    ${past.length ? `<section class="vr-archive"><div class="vr-tag">PAST CONTRACTS</div>
+      ${past.map(k => { const r = state.reviews[k]; return `<button class="vr-past ${k === wk ? 'on' : ''}" data-act="vr-goto" data-week="${k}">
+        <b class="g g-${esc(r.grade || 'none')}">${esc(r.grade || '—')}</b>
+        <span>${fmtMD(k)} – ${fmtMD(dkey(addDays(parseKey(k), 6)))}</span>
+        <em>${esc((r.next || r.well || 'No notes.').slice(0, 110))}</em></button>`; }).join('')}
+    </section>` : ''}
+  </div>`;
+}
+
+document.addEventListener('input', e => {
+  const f = e.target.closest && e.target.closest('#vr-form');
+  if (!f) return;
+  if (e.target.name === 'focus' && e.target.checked && f.querySelectorAll('input[name=focus]:checked').length > 3) {
+    e.target.checked = false;
+    toast('MAX 3', 'Choose at most three focus arts');
+  }
+  velvetDraft[f.dataset.week] = readContract(f);
+});
+document.addEventListener('submit', e => {
+  if (e.target.id !== 'vr-form') return;
+  e.preventDefault();
+  sealContract(e.target);
+});
+
+/* ---------- shop ---------- */
+function rewardModal(id) {
+  const r = id ? state.rewards.find(x => x.id === id) : { name: '', price: 500, icon: 'star', once: false };
+  openModal(`
+    <h2 class="m-title">${ransom(id ? 'EDIT REWARD' : 'NEW REWARD', 21)}</h2>
+    <form>
+      <label class="fld"><span>Reward</span><input name="name" required maxlength="60" value="${esc(r.name)}" placeholder="Movie night, new headphones…"></label>
+      <label class="fld"><span>Price <i>(¥${YEN_PER_XP} per XP · a normal action ≈ ¥${25 * YEN_PER_XP})</i></span><input name="price" type="number" min="1" step="50" required value="${esc(r.price)}"></label>
+      <div class="fld"><span>Icon</span><div class="icon-grid">${ICON_KEYS.map(k => `<label title="${k}"><input type="radio" name="icon" value="${k}" ${r.icon === k ? 'checked' : ''}><span>${iconSvg(k)}</span></label>`).join('')}</div></div>
+      <label class="toggle"><input type="checkbox" name="once" ${r.once ? 'checked' : ''}><span></span>One-time purchase (a big thing you buy once)</label>
+      <div class="m-actions">
+        <button type="button" class="btn ghost" data-act="close-modal">Cancel</button>
+        <button class="btn primary">Save</button>
+      </div>
+    </form>`, root => {
+    root.querySelector('form').onsubmit = e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const data = { name: String(fd.get('name')).trim(), price: Math.max(1, Math.round(Number(fd.get('price')) || 1)), icon: ICONS[fd.get('icon')] ? fd.get('icon') : 'star', once: fd.get('once') === 'on' };
+      if (id) Object.assign(r, data);
+      else state.rewards.push({ id: uid(), createdAt: new Date().toISOString(), ...data });
+      persist(); closeModal(); sfx.ok(); render();
+    };
+  });
+}
+
+// In-app speech bubble for reminders that fire while the window is focused.
+function morganaSays({ title, body, screen: target }) {
+  beep([660, 880, 660], 'triangle', 0.08, 0.04);
+  const el = document.createElement('div');
+  el.className = 'morgana-pop';
+  el.innerHTML = `<b>${esc(title)}</b><span>${esc(body)}</span>`;
+  el.onclick = () => { el.remove(); if (target) go(target); };
+  document.body.appendChild(el);
+  setTimeout(() => el.classList.add('out'), 7000);
+  setTimeout(() => el.remove(), 7600);
+}
+
+const sfxCoin = () => beep([988, 1319, 1976], 'square', 0.05, 0.035);
+
+async function buyReward(id) {
+  const r = state.rewards.find(x => x.id === id);
+  if (!r) return;
+  if (D.yen < r.price) { toast('NOT ENOUGH ¥', `${fmtYen(r.price - D.yen)} more to go`); return; }
+  if (!await askConfirm('BUY THIS?', `${r.name} for ${fmtYen(r.price)}. You earned it, Joker.`, `Buy · ${fmtYen(r.price)}`)) return;
+  state.purchases.push({ id: uid(), rewardId: r.id, name: r.name, price: r.price, icon: r.icon, ts: new Date().toISOString(), date: dkey() });
+  persist(); sfxCoin(); render();
+  toast(`-${fmtYen(r.price)}`, `${r.name} · Thank you, come again!`);
+}
+
+function scrShop() {
+  const todayYen = (D.byDate[dkey()] || 0) * YEN_PER_XP;
+  const count = id => state.purchases.filter(p => p.rewardId === id).length;
+  const cards = state.rewards.map(r => {
+    const owned = r.once && count(r.id) > 0;
+    const short = r.price - D.yen;
+    return `<div class="reward ${owned ? 'owned' : ''} ${short > 0 && !owned ? 'locked' : ''}">
+      <div class="sk-tools">
+        <button class="ic" title="Edit" data-act="edit-reward" data-id="${r.id}">✎</button>
+        <button class="ic" title="Delete" data-act="del-reward" data-id="${r.id}">✕</button>
+      </div>
+      <div class="rw-icon">${iconSvg(r.icon) || iconSvg('star')}</div>
+      <div class="rw-name">${esc(r.name)}</div>
+      <div class="rw-price">${fmtYen(r.price)}</div>
+      <div class="rw-meta">${r.once ? 'one-time' : count(r.id) ? `bought ×${count(r.id)}` : '&nbsp;'}</div>
+      ${owned ? '<div class="rw-stamp">OWNED</div>'
+        : `<button class="btn ${short > 0 ? 'ghost' : 'primary'} small" data-act="buy" data-id="${r.id}">${short > 0 ? `${fmtYen(short)} to go` : 'Buy'}</button>`}
+    </div>`;
+  }).join('');
+  const hist = [...state.purchases].reverse().slice(0, 30);
+  return `${head('shop')}
+  <div class="wallet">
+    <div class="w-main"><span>WALLET</span><b class="${D.yen < 0 ? 'neg' : ''}">${fmtYen(D.yen)}</b></div>
+    <div class="w-side"><b>+${fmtYen(todayYen)}</b><span>earned today</span></div>
+    <div class="w-side"><b>${fmtYen(D.spent)}</b><span>spent all-time</span></div>
+    <div class="w-side"><b>¥${YEN_PER_XP}</b><span>per XP</span></div>
+  </div>
+  <div class="shop-grid">${cards}<button class="skill-add" data-act="add-reward"><b>+</b><span>NEW REWARD</span></button></div>
+  ${hist.length ? `<section class="q-section"><div class="q-head"><h2>Receipts</h2><span>last ${hist.length}</span></div>
+    ${hist.map(p => `<div class="j-item receipt">
+      <span class="j-time">${fmtMD(p.date)}</span><span class="j-kind">BOUGHT</span>
+      <span class="j-label">${iconSvg(p.icon)}${esc(p.name)}</span><span class="j-xp">-${fmtYen(p.price)}</span>
+      <button class="ic" data-act="refund" data-id="${p.id}" title="Refund (undo)">✕</button></div>`).join('')}
+  </section>` : ''}`;
+}
+
+const SCREEN_FN = { status: scrStatus, skills: scrSkills, quests: scrQuests, confidants: scrConfidants, journal: scrJournal, velvet: scrVelvet, shop: scrShop, system: scrSystem };
 
 /* ---------- render ---------- */
 function renderSide() {
@@ -836,19 +1403,27 @@ function renderSide() {
       <div class="cal-dow ${dw === 0 ? 'sun' : dw === 6 ? 'sat' : ''}">${DOW[dw]}</div>
       <div class="cal-tod">${timeOfDay(now.getHours())}</div>
     </div>
-    <nav class="menu">${SCREENS.map((s, i) => `
+    <nav class="menu">${MENU().map((s, i) => `
       <button class="mi ${screen === s.id ? 'active' : ''}" data-act="go" data-id="${s.id}" style="--i:${i}">
         <span class="mi-k">${i + 1}</span><span class="mi-t">${s.label}</span>
       </button>`).join('')}
     </nav>
-    <button class="act-btn" data-act="quick-log"><span>TAKE ACTION</span><kbd>L</kbd></button>
-    <div class="side-foot"><b>${esc(state.player.name)}</b><span>LV ${pl.lvl} · ${esc(titleFor(pl.lvl))}</span></div>`;
+    <div class="side-bottom">
+      ${pendingReviewWeek() && screen !== 'velvet' ? '<button class="vr-badge" data-act="go" data-id="velvet"><span>🦋</span>The Velvet Room awaits</button>' : ''}
+      <button class="act-btn" data-act="quick-log"><span>TAKE ACTION</span><kbd>L</kbd></button>
+    </div>
+    <div class="side-foot">
+      <div><b>${esc(state.player.name)}</b><span>LV ${pl.lvl} · ${esc(titleFor(pl.lvl))}</span></div>
+      <button class="side-wallet" data-act="go" data-id="shop" title="Shop">${fmtYen(D ? D.yen : 0)}</button>
+      <button class="side-gear ${screen === 'system' ? 'on' : ''}" data-act="go" data-id="system" title="System (⌘,)">${iconSvg('gear')}</button>
+    </div>`;
 }
 
 function render() {
   D = derive();
   renderSide();
   const main = $('#main'), y = main.scrollTop;
+  main.classList.toggle('vr-mode', screen === 'velvet');
   $('#screen').innerHTML = SCREEN_FN[screen]();
   main.scrollTop = y;
   if (screen === 'system') window.api.savePath().then(p => { const el = $('#sys-path'); if (el) el.textContent = p; });
@@ -857,6 +1432,7 @@ function render() {
 function go(id) {
   if (!SCREEN_FN[id]) return;
   const changed = id !== screen;
+  if (changed && id === 'velvet') velvetWeek = pendingReviewWeek() || weekKey(new Date());
   screen = id;
   if (id !== 'journal') journalLimit = 40;
   render();
@@ -886,7 +1462,7 @@ const ACTIONS = {
     state.quests = state.quests.filter(q => !linked.includes(q));
     persist(); sfx.back(); render();
   },
-  'quick-skill': ds => logActivity('skill:' + ds.id, ds.int),
+  'quick-skill': ds => logActivity(['skill:' + ds.id], ds.int),
   'log-skill': ds => openQuickLog('skill:' + ds.id),
   'add-quest': ds => questModal(null, ds.type),
   'new-mission': () => { go('quests'); questModal(null, 'once'); },
@@ -911,6 +1487,33 @@ const ACTIONS = {
     if (!await askConfirm('UNDO THIS?', `Remove "${entryLabel(e)}" (+${e.xp} XP) from ${e.date}? Levels and ranks recalculate.`, 'Remove')) return;
     state.log = state.log.filter(x => x.id !== e.id);
     persist(); sfx.back(); render();
+  },
+  'vr-week': ds => {
+    const cur = weekKey(new Date());
+    const w = Number(ds.dir) > 0 ? nextWeek(velvetWeek || cur) : prevWeek(velvetWeek || cur);
+    velvetWeek = w > cur ? cur : w;
+    sfx.nav(); render();
+  },
+  'vr-goto': ds => { velvetWeek = ds.week; sfx.nav(); render(); $('#main').scrollTop = 0; },
+  'add-reward': () => rewardModal(),
+  'edit-reward': ds => rewardModal(ds.id),
+  'del-reward': async ds => {
+    const r = state.rewards.find(x => x.id === ds.id);
+    if (!await askConfirm('REMOVE REWARD?', `"${r.name}" will leave the shop. Past receipts stay.`, 'Remove')) return;
+    state.rewards = state.rewards.filter(x => x.id !== r.id);
+    persist(); sfx.back(); render();
+  },
+  buy: ds => buyReward(ds.id),
+  refund: async ds => {
+    const p = state.purchases.find(x => x.id === ds.id);
+    if (!await askConfirm('REFUND?', `Undo buying "${p.name}" and get ${fmtYen(p.price)} back.`, 'Refund')) return;
+    state.purchases = state.purchases.filter(x => x.id !== p.id);
+    persist(); sfx.back(); render();
+  },
+  'test-notify': async () => {
+    const r = await window.api.testNotify();
+    if (r === 'scheduled') toast('IN 5 SECONDS', 'Switch to another app to see the banner');
+    else toast('NO NOTIFICATIONS', 'macOS blocked them — System Settings → Notifications');
   },
   'more-journal': () => { journalLimit += 60; render(); },
   export: async () => { if (await window.api.exportSave(state)) toast('SAVED', 'Export written'); },
@@ -941,7 +1544,13 @@ document.addEventListener('change', e => {
     state.player.name = e.target.value.trim() || 'Joker';
     persist(); render(); toast('CODENAME SET', state.player.name);
   }
-  if (e.target.id === 'sys-sound') { state.settings.sound = e.target.checked; persist(); sfx.ok(); }
+  const key = e.target.dataset && e.target.dataset.setting;
+  if (key) {
+    state.settings[key] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    persist(); sfx.ok();
+    if (key === 'hotkey') window.api.setHotkey(e.target.checked).then(ok => { if (e.target.checked && !ok) toast('SHORTCUT TAKEN', '⌘⇧L is used by another app'); });
+    if (key === 'openAtLogin') window.api.setLogin(e.target.checked);
+  }
 });
 
 document.addEventListener('keydown', e => {
@@ -950,10 +1559,11 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.key === 'Escape') { closeModal(); return; }
+  if (e.metaKey && e.key === ',') { e.preventDefault(); closeModal(); go('system'); return; }
   const tag = (e.target.tagName || '').toLowerCase();
   if (['input', 'textarea', 'select'].includes(tag) || $('#modal-root').firstChild || e.metaKey || e.ctrlKey || e.altKey) return;
   const n = Number(e.key);
-  if (n >= 1 && n <= SCREENS.length) go(SCREENS[n - 1].id);
+  if (n >= 1 && n <= MENU().length) go(MENU()[n - 1].id);
   else if (e.key.toLowerCase() === 'l') { e.preventDefault(); openQuickLog(); }
 });
 
@@ -979,6 +1589,8 @@ window.__seedDemo = () => {
       state.log.push({ id: uid(), ts: dt.toISOString(), date: dkey(dt), kind: 'hangout', confId: c.id, stat: c.stat, xp: 25, statPts: 5, cpts: 2, intensity: 'normal', note: 'Good talk.' });
     }
   }
+  const lastWk = prevWeek(weekKey(new Date()));
+  state.reviews[lastWk] = { grade: 'A', well: 'Shipped the landing page. Gym 4 times.', held: 'Doomscrolling at night.', next: 'Study for CKA every morning.', focus: [state.skills[0].id, state.skills[2].id], completedAt: new Date().toISOString() };
   const q = state.quests[0];
   state.log.push({ id: uid(), ts: new Date().toISOString(), date: dkey(), kind: 'quest', questId: q.id, ...targetInfo(q.target), xp: 25, statPts: 5, intensity: 'normal', note: q.title });
   render();
@@ -993,4 +1605,8 @@ window.__demoRankUp = () => queueRankUp({ kicker: 'Knowledge', big: 'RANK UP!', 
   render();
   $('#screen').classList.add('enter');
   setInterval(renderSide, 60 * 1000);
+  window.api.onQuickLog(() => { closeRankUp(); closeModal(); openQuickLog(); });
+  window.api.onGo(id => { closeModal(); go(id || 'status'); });
+  window.api.onMorgana(m => morganaSays(m));
+  window.api.setHotkey(state.settings.hotkey !== false);
 })();
