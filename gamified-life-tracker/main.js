@@ -9,6 +9,10 @@ if (process.env.PL_USERDATA) app.setPath('userData', process.env.PL_USERDATA);
 // Test runs (screenshots / eval) skip hotkeys, reminders and login items.
 const TEST = !!(process.env.PL_SHOT || process.env.PL_EVAL);
 let mainWin = null;
+// Reminders and the hotkey belong to the installed app only, so `npm start` next to it
+// doesn't double them. (macOS already keeps the installed app to a single copy; Electron's
+// own single-instance lock rejects ad-hoc signed builds, so it isn't used.)
+const BACKGROUND = !TEST && app.isPackaged;
 
 const savePath = () => path.join(app.getPath('userData'), 'save.json');
 const backupDir = () => path.join(app.getPath('userData'), 'backups');
@@ -121,11 +125,19 @@ function createWindow() {
       const wait = ms => new Promise(r => setTimeout(r, ms));
       await wait(800);
       if (process.env.PL_SEED) await win.webContents.executeJavaScript('window.__seedDemo && window.__seedDemo()');
-      for (const id of ['status', 'skills', 'quests', 'confidants', 'journal', 'velvet', 'shop', 'system']) {
+      for (const id of ['status', 'skills', 'quests', 'confidants', 'journal', 'compendium', 'velvet', 'shop', 'system']) {
         await win.webContents.executeJavaScript(`go(${JSON.stringify(id)})`);
         await wait(id === "velvet" ? 4500 : 700);
         const img = await win.webContents.capturePage();
         fs.writeFileSync(path.join(process.env.PL_SHOT, `${id}.png`), img.toPNG());
+        if (id === 'journal') {
+          for (const tab of ['calendar', 'charts']) {
+            await win.webContents.executeJavaScript(`journalTab = '${tab}'; render()`);
+            await wait(600);
+            fs.writeFileSync(path.join(process.env.PL_SHOT, `journal-${tab}.png`), (await win.webContents.capturePage()).toPNG());
+          }
+          await win.webContents.executeJavaScript("journalTab = 'log'");
+        }
         if (id === 'velvet') {
           await win.webContents.executeJavaScript("document.querySelector('#main').scrollTop = 99999");
           await wait(500);
@@ -166,7 +178,7 @@ async function sendToRenderer(channel, ...args) {
 /* ---------- global hotkey: Take Action from anywhere ---------- */
 const HOTKEY = 'CommandOrControl+Shift+L';
 function applyHotkey(on) {
-  if (TEST) return false;
+  if (!BACKGROUND) return false;
   globalShortcut.unregister(HOTKEY);
   if (on) globalShortcut.register(HOTKEY, () => sendToRenderer('quick-log'));
   return globalShortcut.isRegistered(HOTKEY);
@@ -251,7 +263,7 @@ app.whenReady().then(() => {
   const st = (readSave() || {}).settings || {};
   // Started at login: stay in the background (Dock) — reminders and the hotkey still work.
   if (!app.getLoginItemSettings().wasOpenedAtLogin) createWindow();
-  if (!TEST) {
+  if (BACKGROUND) {
     applyHotkey(st.hotkey !== false);
     setTimeout(checkReminders, 5000);
     setInterval(checkReminders, 30 * 1000);

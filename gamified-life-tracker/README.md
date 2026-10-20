@@ -37,10 +37,14 @@ npm run install_app   # builds and copies Phantom Life.app into /Applications
 - **Morgana**: macOS reminders for unfinished dailies, bedtime and the Sunday Velvet Room — they
   run in the background while the app is open (window closed is fine). Times are set in System.
 - **Global shortcut** `⌘⇧L` opens Take Action from any app.
-- **Journal**: full history + yearly heatmap. Delete an entry to undo it — every level and
+- **Compendium**: 28 personas that awaken at milestones (streaks, ranks, missions, contracts…).
+- **Mementos requests**: each day Morgana picks a neglected skill — the first action on it earns ×2 XP.
+- **Condition**: log how you feel each day; Igor points out how it affects your output.
+- **Journal**: full history + yearly heatmap, a P5-style month calendar, and charts (XP per week,
+  social stat growth, skills over the last 30 days). Delete an entry to undo it — every level and
   rank is recalculated from the journal.
 
-Keys: `1`–`7` switch screens · `⌘,` System · `⌘⇧L` take action from anywhere · `L` take action · `⌘↵` submit · `Esc` close.
+Keys: `1`–`8` switch screens · `⌘,` System · `⌘⇧L` take action from anywhere · `L` take action · `⌘↵` submit · `Esc` close.
 
 ## Data
 
