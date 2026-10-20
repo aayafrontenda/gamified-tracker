@@ -55,6 +55,7 @@ const SCREENS = [
   { id: 'quests',     label: 'Quests',     sub: 'Habits & missions' },
   { id: 'confidants', label: 'Confidants', sub: 'The bonds that make you' },
   { id: 'journal',    label: 'Journal',    sub: 'Every step you took' },
+  { id: 'compendium', label: 'Compendium', sub: 'Every self you have awakened' },
   { id: 'velvet',     label: 'Velvet Room', sub: 'Your weekly appraisal' },
   { id: 'shop',       label: 'Shop',       sub: 'Treat yourself — you earned it' },
   { id: 'system',     label: 'System',     sub: 'Save, load, config', menu: false },
@@ -221,6 +222,10 @@ function defaultState() {
       reward('New piece of clothing', 8000, 'shirt', true),
     ],
     purchases: [],
+    reviews: {},
+    conditions: {},
+    requests: {},
+    compendium: {},
     skills,
     quests: [
       q('Work out', 'daily', by('Sports'), 'normal'),
@@ -229,10 +234,11 @@ function defaultState() {
       q('Call family', 'weekly', 'stat:kindness', 'normal'),
     ],
     confidants: [],
-    reviews: {},
     log: [],
   };
 }
+
+const obj = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
 
 function normalize(s) {
   const base = defaultState();
@@ -246,6 +252,7 @@ function normalize(s) {
     confidants: Array.isArray(s.confidants) ? s.confidants : [],
     rewards: Array.isArray(s.rewards) ? s.rewards : base.rewards,
     purchases: Array.isArray(s.purchases) ? s.purchases : [],
+    conditions: obj(s.conditions), requests: obj(s.requests), compendium: obj(s.compendium),
     reviews: s.reviews && typeof s.reviews === 'object' && !Array.isArray(s.reviews) ? s.reviews : {},
     log: Array.isArray(s.log) ? s.log : [],
   };
@@ -325,14 +332,16 @@ const statsText = (e, short) => Object.entries(entryStats(e)).filter(([k, v]) =>
 // even when several chosen skills feed it. The player earns the action's XP once.
 function buildGains(targets, baseXp) {
   const skills = {}, stats = {};
-  let top = 0, bonus = false;
+  let top = 0, bonus = false, req = false;
+  const rq = todaysRequest();
   for (const t of new Set(targets)) {
     const [kind, id] = String(t).split(':');
     if (kind === 'skill') {
       const s = skillById(id);
       if (!s) continue;
       const focus = isFocus(id);
-      const xp = focus ? Math.round(baseXp * FOCUS_MULT) : baseXp;
+      let xp = focus ? Math.round(baseXp * FOCUS_MULT) : baseXp;
+      if (rq && !rq.done && rq.skillId === id) { xp *= 2; req = true; } // Mementos request
       bonus = bonus || focus;
       skills[id] = xp;
       stats[s.stat] = Math.max(stats[s.stat] || 0, statPtsFor(xp));
@@ -342,7 +351,7 @@ function buildGains(targets, baseXp) {
       top = Math.max(top, baseXp);
     }
   }
-  return { skills, stats, xp: top, bonus };
+  return { skills, stats, xp: top, bonus, req };
 }
 
 /* ---------- actions that change progress ---------- */
@@ -355,8 +364,9 @@ function commit(entry) {
   sfx.ok();
   const label = entryLabel(e);
   const st = statsText(e);
-  toast(`+${e.xp} XP`, `${label}${e.bonus ? ' · FOCUS ×1.5' : ''}${st ? ' · ' + st : ''} · +${fmtYen(e.xp * YEN_PER_XP)}`);
+  toast(`+${e.xp} XP`, `${label}${e.req ? ' · REQUEST ×2' : ''}${e.bonus ? ' · FOCUS ×1.5' : ''}${st ? ' · ' + st : ''} · +${fmtYen(e.xp * YEN_PER_XP)}`);
   announce(before, after);
+  checkCompendium();
   render();
   return e;
 }
@@ -382,7 +392,7 @@ function logActivity(targets, intId, note = '') {
   const tg = [...new Set(targets)];
   const g = buildGains(tg, I.xp);
   if (!g.xp) return;
-  commit({ kind: 'activity', tg, skills: g.skills, stats: g.stats, xp: g.xp, intensity: I.id, note, ...(g.bonus && { bonus: true }) });
+  commit({ kind: 'activity', tg, skills: g.skills, stats: g.stats, xp: g.xp, intensity: I.id, note, ...(g.bonus && { bonus: true }), ...(g.req && { req: dkey() }) });
 }
 
 function questCompletion(q) {
@@ -438,7 +448,7 @@ function toggleQuest(id) {
   }
   const I = intensity(q.intensity);
   const g = buildGains([q.target], I.xp);
-  commit({ kind: 'quest', questId: q.id, tg: [q.target], skills: g.skills, stats: g.stats, xp: g.xp || I.xp, intensity: I.id, note: q.title, ...(g.bonus && { bonus: true }) });
+  commit({ kind: 'quest', questId: q.id, tg: [q.target], skills: g.skills, stats: g.stats, xp: g.xp || I.xp, intensity: I.id, note: q.title, ...(g.bonus && { bonus: true }), ...(g.req && { req: dkey() }) });
 }
 
 /* ---------- sound ---------- */
@@ -485,7 +495,7 @@ function showNextRankUp() {
   if (!r) return;
   sfx.rank();
   $('#rankup-root').innerHTML = `
-    <div class="rankup ${r.conf ? 'conf' : ''} ${r.velvet ? 'velvet' : ''}" data-act="close-rankup">
+    <div class="rankup ${r.conf ? 'conf' : ''} ${r.velvet ? 'velvet' : ''} ${r.persona ? 'persona' : ''}" data-act="close-rankup">
       <div class="ru-burst"></div>
       <div class="ru-slash"></div><div class="ru-slash two"></div>
       <div class="ru-content">
@@ -540,7 +550,7 @@ function targetSelect(name, cur) {
 function targetChips(name, selected, hideStats = []) {
   const chip = (v, label, extra = '') => `<label><input type="checkbox" name="${name}" value="${v}" ${selected.includes(v) ? 'checked' : ''}><span>${label}${extra}</span></label>`;
   return `<div class="tchips">
-    <div class="tc-row"><small>Skills</small>${state.skills.map(s => chip('skill:' + s.id, `${skillIcon(s)}${esc(s.name)}`, isFocus(s.id) ? ' <em>★×1.5</em>' : '')).join('')}</div>
+    <div class="tc-row"><small>Skills</small>${state.skills.map(s => chip('skill:' + s.id, `${skillIcon(s)}${esc(s.name)}`, (isFocus(s.id) ? ' <em>★×1.5</em>' : '') + (isRequest(s.id) ? ' <em>×2 REQ</em>' : ''))).join('')}</div>
     <div class="tc-row"><small>Social stat only</small>${STAT_ORDER.filter(k => !hideStats.includes(k)).map(k => chip('stat:' + k, '★ ' + STATS[k].name)).join('')}</div>
   </div>`;
 }
@@ -740,7 +750,7 @@ function hangoutModal(id) {
       const g = buildGains([...extra, ...confStats(fd)], I.xp);
       for (const cid of confIds) { const c = confById(cid); if (c) c.lastTg = extra; }
       closeModal();
-      commit({ kind: 'hangout', confIds, tg: extra, skills: g.skills, stats: g.stats, xp: g.xp, cpts: I.cpts, intensity: I.id, note: String(fd.get('note') || '').trim(), ...(g.bonus && { bonus: true }) });
+      commit({ kind: 'hangout', confIds, tg: extra, skills: g.skills, stats: g.stats, xp: g.xp, cpts: I.cpts, intensity: I.id, note: String(fd.get('note') || '').trim(), ...(g.bonus && { bonus: true }), ...(g.req && { req: dkey() }) });
     };
   });
 }
@@ -863,6 +873,8 @@ function scrStatus() {
       }).join('') : '<div class="muted">No daily quests yet.</div>'}</div>
     </section>
     ${card}
+    ${conditionPanel()}
+    ${requestPanel()}
     <section class="panel heat-panel"><div class="tag">ACTIVITY · LAST 26 WEEKS</div>${heatmap(26)}</section>
   </div>`;
 }
@@ -981,7 +993,29 @@ function scrConfidants() {
     : empty('No confidants yet.', 'Friends, family, mentors — the people you want to grow closer to. Each bond has 10 ranks.', 'add-conf', '+ Add your first confidant')}`;
 }
 
+const KIND_TAG = { activity: 'ACTION', quest: 'QUEST', hangout: 'BOND', review: 'VELVET' };
+const jItem = e => `
+  <div class="j-item">
+    <span class="j-time">${fmtTime(e.ts)}</span>
+    <span class="j-kind ${e.kind}">${KIND_TAG[e.kind] || 'ACTION'}</span>
+    <span class="j-label">${esc(entryLabel(e))}${e.note ? ` — <i>${esc(e.note)}</i>` : ''}</span>
+    <span class="j-xp">+${e.xp}${statsText(e, true) ? ' · ' + statsText(e, true) : ''}</span>
+    <button class="ic" data-act="del-entry" data-id="${e.id}" title="Delete (undo)">✕</button>
+  </div>`;
+
+let journalTab = 'log';
+let calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let calDay = null;
+
 function scrJournal() {
+  const tabs = [['log', 'Log'], ['calendar', 'Calendar'], ['charts', 'Charts']];
+  const body = journalTab === 'calendar' ? journalCalendar() : journalTab === 'charts' ? journalCharts() : journalLog();
+  return `${head('journal')}
+  <div class="j-tabs">${tabs.map(([id, l]) => `<button class="j-tab ${journalTab === id ? 'on' : ''}" data-act="j-tab" data-id="${id}">${l}</button>`).join('')}</div>
+  ${body}`;
+}
+
+function journalLog() {
   const entries = [...state.log].sort((a, b) => b.ts.localeCompare(a.ts));
   const shown = entries.slice(0, journalLimit);
   const groups = [];
@@ -989,27 +1023,141 @@ function scrJournal() {
     if (!groups.length || groups[groups.length - 1].date !== e.date) groups.push({ date: e.date, items: [] });
     groups[groups.length - 1].items.push(e);
   }
-  const kindTag = { activity: 'ACTION', quest: 'QUEST', hangout: 'BOND', review: 'VELVET' };
   const body = groups.map(g => {
     const dt = parseKey(g.date);
-    const xp = D.byDate[g.date] || 0;
+    const cond = state.conditions[g.date];
     return `<div class="j-day">
-      <div class="j-date"><b>${dt.getMonth() + 1}/${dt.getDate()}</b><span class="dow ${dt.getDay() === 0 ? 'sun' : dt.getDay() === 6 ? 'sat' : ''}">${DOW[dt.getDay()]}</span><em>+${xp} XP</em></div>
-      <div class="j-items">${g.items.map(e => `
-        <div class="j-item">
-          <span class="j-time">${fmtTime(e.ts)}</span>
-          <span class="j-kind ${e.kind}">${kindTag[e.kind] || 'ACTION'}</span>
-          <span class="j-label">${esc(entryLabel(e))}${e.note ? ` — <i>${esc(e.note)}</i>` : ''}</span>
-          <span class="j-xp">+${e.xp}${statsText(e, true) ? ' · ' + statsText(e, true) : ''}</span>
-          <button class="ic" data-act="del-entry" data-id="${e.id}" title="Delete (undo)">✕</button>
-        </div>`).join('')}</div>
+      <div class="j-date"><b>${dt.getMonth() + 1}/${dt.getDate()}</b><span class="dow ${dt.getDay() === 0 ? 'sun' : dt.getDay() === 6 ? 'sat' : ''}">${DOW[dt.getDay()]}</span><em>+${D.byDate[g.date] || 0} XP</em>
+        ${cond ? `<span class="cond-chip c-${cond}">${condLabel(cond)}</span>` : ''}</div>
+      <div class="j-items">${g.items.map(jItem).join('')}</div>
     </div>`;
   }).join('');
-  return `${head('journal')}
-  <section class="panel heat-panel wide"><div class="tag">ACTIVITY · LAST YEAR</div>${heatmap(52)}</section>
+  return `<section class="panel heat-panel wide"><div class="tag">ACTIVITY · LAST YEAR</div>${heatmap(52)}</section>
   ${entries.length ? `<div class="journal">${body}</div>
     ${entries.length > journalLimit ? `<div class="center"><button class="btn" data-act="more-journal">Show more (${entries.length - journalLimit} left)</button></div>` : ''}`
     : empty('The journal is empty.', 'Press L anywhere to log your first action.', 'quick-log', 'Take action')}`;
+}
+
+/* ---------- calendar ---------- */
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function journalCalendar() {
+  const first = calMonth;
+  const start = addDays(first, -((first.getDay() + 6) % 7));
+  const today = dkey();
+  const sel = calDay || today;
+  const deadlines = {};
+  for (const q of state.quests) if (q.type === 'once' && q.deadline) (deadlines[q.deadline] = deadlines[q.deadline] || []).push(q);
+  let cells = '';
+  for (let i = 0; i < 42; i++) {
+    const dt = addDays(start, i), k = dkey(dt), xp = D.byDate[k] || 0;
+    const lv = xp === 0 ? 0 : xp < 30 ? 1 : xp < 75 ? 2 : xp < 150 ? 3 : 4;
+    const cond = state.conditions[k];
+    const dl = deadlines[k] || [];
+    const tip = [`<b>${fmtMD(k)} ${DOW[dt.getDay()]}</b>`, `${xp} XP`, cond && condLabel(cond), ...dl.map(q => '◆ ' + esc(q.title))].filter(Boolean).join('<br>');
+    cells += `<button class="cal-cell h${lv} ${dt.getMonth() !== first.getMonth() ? 'out' : ''} ${k === today ? 'today' : ''} ${k === sel ? 'sel' : ''}" data-act="cal-day" data-id="${k}" data-tip="${esc(tip)}">
+      <span class="cc-n">${dt.getDate()}</span>
+      ${cond ? `<i class="cc-cond c-${cond}"></i>` : ''}
+      ${xp ? `<span class="cc-xp">${xp}</span>` : ''}
+      ${dl.length ? `<span class="cc-dl">◆ ${esc(dl[0].title)}</span>` : ''}
+    </button>`;
+  }
+  const dayEntries = state.log.filter(e => e.date === sel).sort((a, b) => a.ts.localeCompare(b.ts));
+  const sd = parseKey(sel), sc = state.conditions[sel];
+  return `<div class="cal-wrap">
+    <section class="cal-month">
+      <div class="cal-head">
+        <button class="vr-arrow" data-act="cal-month" data-dir="-1">◀</button>
+        <b>${MONTHS[first.getMonth()]} <span>${first.getFullYear()}</span></b>
+        <button class="vr-arrow" data-act="cal-month" data-dir="1">▶</button>
+      </div>
+      <div class="cal-dows">${['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(d => `<span class="${d === 'SUN' ? 'sun' : d === 'SAT' ? 'sat' : ''}">${d}</span>`).join('')}</div>
+      <div class="cal-grid">${cells}</div>
+    </section>
+    <section class="panel cal-day">
+      <div class="tag">${sd.getMonth() + 1}/${sd.getDate()} · ${DOW[sd.getDay()]}</div>
+      <div class="cd-sum"><b>+${D.byDate[sel] || 0} XP</b>${sc ? `<span class="cond-chip c-${sc}">${condLabel(sc)}</span>` : ''}</div>
+      ${(deadlines[sel] || []).map(q => `<div class="cd-dl">◆ Deadline: ${esc(q.title)}</div>`).join('')}
+      <div class="j-items">${dayEntries.length ? dayEntries.map(jItem).join('') : '<div class="muted pad">Nothing logged this day.</div>'}</div>
+    </section>
+  </div>`;
+}
+
+/* ---------- charts ---------- */
+// Validated categorical palette (dark surface): one fixed hue per social stat.
+const STAT_COLORS = { knowledge: '#3987e5', guts: '#d95926', proficiency: '#199e70', kindness: '#c98500', charm: '#d55181' };
+function niceMax(v) {
+  if (v <= 0) return 10;
+  const p = 10 ** Math.floor(Math.log10(v));
+  const m = [1, 2, 2.5, 5, 10].find(f => f * p >= v);
+  return m * p;
+}
+
+function journalCharts() {
+  const weeks = 26, cur = parseKey(weekKey(new Date()));
+  const wk = Array.from({ length: weeks }, (_, i) => addDays(cur, -7 * (weeks - 1 - i)));
+  const wkKey = wk.map(dkey);
+  const idx = Object.fromEntries(wkKey.map((k, i) => [k, i]));
+  const xpW = new Array(weeks).fill(0);
+  const statW = Object.fromEntries(STAT_ORDER.map(k => [k, new Array(weeks).fill(0)]));
+  const base = Object.fromEntries(STAT_ORDER.map(k => [k, 0]));
+  const since30 = dkey(addDays(new Date(), -29)), skill30 = {};
+  for (const e of state.log) {
+    const i = idx[weekKey(parseKey(e.date))];
+    const st = entryStats(e);
+    if (i === undefined) { if (e.date < wkKey[0]) for (const [k, v] of Object.entries(st)) if (k in base) base[k] += v; }
+    else { xpW[i] += e.xp || 0; for (const [k, v] of Object.entries(st)) if (k in base) statW[k][i] += v; }
+    if (e.date >= since30) for (const [id, v] of Object.entries(entrySkills(e))) skill30[id] = (skill30[id] || 0) + v;
+  }
+  // running stat totals at the end of each week
+  const cum = Object.fromEntries(STAT_ORDER.map(k => { let run = base[k]; return [k, statW[k].map(v => (run += v))]; }));
+
+  const W = 820, H = 230, L = 44, R = 14, T = 14, B = 26, iw = W - L - R, ih = H - T - B;
+  const x = i => L + (i + 0.5) * iw / weeks;
+  const grid = max => [0, 0.5, 1].map(f => {
+    const y = T + ih - f * ih;
+    return `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" class="ch-grid"/><text x="${L - 8}" y="${y + 4}" class="ch-ax" text-anchor="end">${Math.round(max * f)}</text>`;
+  }).join('');
+  const xLabels = wk.map((d, i) => i % 4 === 1 ? `<text x="${x(i)}" y="${H - 6}" class="ch-ax" text-anchor="middle">${d.getMonth() + 1}/${d.getDate()}</text>` : '').join('');
+
+  // 1) weekly XP — bars with rounded data-ends on the baseline
+  const xMax = niceMax(Math.max(...xpW));
+  const bw = iw / weeks - 4;
+  const bars = xpW.map((v, i) => {
+    const h = Math.max(v / xMax * ih, v ? 4 : 0), y = T + ih - h, x0 = x(i) - bw / 2;
+    const tip = esc(`<b>Week of ${fmtMD(wkKey[i])}</b><br>${v} XP`);
+    return `<g data-tip="${tip}"><rect x="${x0 - 2}" y="${T}" width="${bw + 4}" height="${ih}" class="ch-hit"/>
+      ${v ? `<path d="M${x0},${T + ih} V${y + 4} q0,-4 4,-4 h${bw - 8} q4,0 4,4 V${T + ih} Z" class="ch-bar ${i === weeks - 1 ? 'cur' : ''}"/>` : ''}</g>`;
+  }).join('');
+
+  // 2) social stat totals — lines (legend + hover column)
+  const sMax = niceMax(Math.max(1, ...STAT_ORDER.map(k => cum[k][weeks - 1])));
+  const yS = v => T + ih - v / sMax * ih;
+  const lines = STAT_ORDER.map(k => `<polyline points="${cum[k].map((v, i) => `${x(i).toFixed(1)},${yS(v).toFixed(1)}`).join(' ')}" class="ch-line" stroke="${STAT_COLORS[k]}"/>`).join('');
+  const ends = STAT_ORDER.map(k => `<circle cx="${x(weeks - 1)}" cy="${yS(cum[k][weeks - 1])}" r="4.5" fill="${STAT_COLORS[k]}" class="ch-dot"/>`).join('');
+  const cols = wk.map((_, i) => {
+    const tip = esc(`<b>Week of ${fmtMD(wkKey[i])}</b><br>` + STAT_ORDER.map(k => `<i class="sw" style="background:${STAT_COLORS[k]}"></i>${STATS[k].name}: ${cum[k][i]}`).join('<br>'));
+    return `<rect x="${x(i) - iw / weeks / 2}" y="${T}" width="${iw / weeks}" height="${ih}" class="ch-col" data-tip="${tip}"/>`;
+  }).join('');
+  const legend = STAT_ORDER.map(k => `<span><i class="sw" style="background:${STAT_COLORS[k]}"></i>${STATS[k].name} <b>${cum[k][weeks - 1]}</b></span>`).join('');
+
+  // 3) skills — last 30 days, horizontal bars
+  const rows = state.skills.map(s => [s, skill30[s.id] || 0]).sort((a, b) => b[1] - a[1]);
+  const kMax = Math.max(1, ...rows.map(r => r[1]));
+  const skillBars = rows.map(([s, v]) => `<div class="hb" data-tip="${esc(`<b>${esc(s.name)}</b><br>${v} XP in 30 days`)}">
+    <span class="hb-name">${skillIcon(s)}${esc(s.name)}</span>
+    <div class="hb-track"><i style="width:${v / kMax * 100}%"></i></div>
+    <b>${v}</b></div>`).join('');
+
+  return `<div class="charts">
+    <section class="panel chart"><div class="tag">XP PER WEEK</div>
+      <svg viewBox="0 0 ${W} ${H}" class="ch">${grid(xMax)}${bars}${xLabels}</svg></section>
+    <section class="panel chart"><div class="tag">SOCIAL STATS · TOTAL POINTS</div>
+      <div class="ch-legend">${legend}</div>
+      <svg viewBox="0 0 ${W} ${H}" class="ch">${grid(sMax)}${lines}${cols}${ends}${xLabels}</svg></section>
+    <section class="panel chart"><div class="tag">SKILLS · LAST 30 DAYS</div>
+      ${rows.length ? skillBars : '<div class="muted">No skills yet.</div>'}</section>
+  </div>`;
 }
 
 function scrSystem() {
@@ -1050,9 +1198,10 @@ function scrSystem() {
         <li><b>Social stats</b> rank up at ${STAT_T.slice(1).join(' / ')} points — just like the game, rank 5 takes real dedication.</li>
         <li><b>Confidants</b> have 10 ranks. Deeper hangouts build the bond faster.</li>
         <li><b>Velvet Room</b> — review your week, seal a contract (+50 XP) and pick up to 3 focus skills that earn ×1.5 XP the following week.</li>
+        <li><b>Compendium</b> — personas awaken at milestones. <b>Mementos</b> — Morgana's daily request doubles XP on one skill.</li>
         <li><b>Shop</b> — every XP also pays ¥${YEN_PER_XP}. Spend it on rewards you define.</li>
         <li>Made a mistake? Delete it in the <b>Journal</b> — everything recalculates.</li>
-        <li>Keys: <kbd>1</kbd>–<kbd>7</kbd> switch screens · <kbd>⌘,</kbd> System · <kbd>⌘⇧L</kbd> take action from anywhere · <kbd>L</kbd> take action · <kbd>Esc</kbd> close.</li>
+        <li>Keys: <kbd>1</kbd>–<kbd>8</kbd> switch screens · <kbd>⌘,</kbd> System · <kbd>⌘⇧L</kbd> take action from anywhere · <kbd>L</kbd> take action · <kbd>Esc</kbd> close.</li>
       </ul>
     </section>
     <section class="panel danger-zone">
@@ -1177,6 +1326,9 @@ function igorLines(wk, W, P, rev) {
       .map(q => [q, daysUntil(q.deadline)]).filter(([, n]) => n >= 0 && n <= 10).sort((a, b2) => a[1] - b2[1])[0];
     if (due) L.push(`A deadline approaches: ${b(due[0].title)}, ${due[1] === 0 ? 'today' : `in ${due[1]} day${due[1] === 1 ? '' : 's'}`}.`);
   }
+
+  const ci = conditionInsight();
+  if (ci) L.push(ci);
 
   L.push(rev
     ? 'Your contract for this week is sealed. Return when the next week ends.'
@@ -1349,7 +1501,7 @@ async function buyReward(id) {
   if (D.yen < r.price) { toast('NOT ENOUGH ¥', `${fmtYen(r.price - D.yen)} more to go`); return; }
   if (!await askConfirm('BUY THIS?', `${r.name} for ${fmtYen(r.price)}. You earned it, Joker.`, `Buy · ${fmtYen(r.price)}`)) return;
   state.purchases.push({ id: uid(), rewardId: r.id, name: r.name, price: r.price, icon: r.icon, ts: new Date().toISOString(), date: dkey() });
-  persist(); sfxCoin(); render();
+  persist(); sfxCoin(); checkCompendium(); render();
   toast(`-${fmtYen(r.price)}`, `${r.name} · Thank you, come again!`);
 }
 
@@ -1389,7 +1541,167 @@ function scrShop() {
   </section>` : ''}`;
 }
 
-const SCREEN_FN = { status: scrStatus, skills: scrSkills, quests: scrQuests, confidants: scrConfidants, journal: scrJournal, velvet: scrVelvet, shop: scrShop, system: scrSystem };
+/* ---------- condition ---------- */
+const CONDITIONS = [['great', 'Great'], ['good', 'Good'], ['tired', 'Tired'], ['sick', 'Sick']];
+const condLabel = k => (CONDITIONS.find(c => c[0] === k) || [, ''])[1];
+
+function conditionPanel() {
+  const cur = state.conditions[dkey()];
+  return `<section class="panel cond">
+    <div class="tag">CONDITION</div>
+    <div class="cond-q">${cur ? `Feeling <b class="c-${cur}">${condLabel(cur)}</b> today.` : 'How do you feel today?'}</div>
+    <div class="cond-opts">${CONDITIONS.map(([k, l]) => `<button class="cond-btn c-${k} ${cur === k ? 'on' : ''}" data-act="set-cond" data-id="${k}">${l}</button>`).join('')}</div>
+  </section>`;
+}
+
+// Igor compares XP on good days vs rough days over the last 60 days.
+function conditionInsight() {
+  const good = [], bad = [];
+  for (let i = 1; i <= 60; i++) {
+    const k = dkey(addDays(new Date(), -i)), c = state.conditions[k];
+    if (!c) continue;
+    (c === 'great' || c === 'good' ? good : bad).push(D.byDate[k] || 0);
+  }
+  if (good.length < 3 || bad.length < 3) return '';
+  const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const g = avg(good), b = avg(bad);
+  if (!g) return '';
+  const pct = Math.round((g - b) / g * 100);
+  return pct >= 15
+    ? `On days you felt tired or sick you earned <b>${pct}% less XP</b>. Rest, too, is part of the heist.`
+    : 'Even on your rough days you kept pace. Hm hm... impressive.';
+}
+
+/* ---------- mementos requests ---------- */
+// Morgana's daily request: one of the three most neglected skills, fixed for the day. First action on it ×2.
+function todaysRequest() {
+  if (!state.skills.length) return null;
+  const today = dkey();
+  const last = {};
+  for (const e of state.log) for (const id of Object.keys(entrySkills(e))) if (e.date < today && (!last[id] || e.date > last[id])) last[id] = e.date;
+  let id = state.requests[today];
+  if (!id || !skillById(id)) {
+    const pool = [...state.skills].sort((a, b) => (last[a.id] || '').localeCompare(last[b.id] || '')).slice(0, 3);
+    const h = [...today].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+    id = pool[h % pool.length].id;
+    state.requests[today] = id;
+    const cutoff = dkey(addDays(new Date(), -60));
+    for (const k of Object.keys(state.requests)) if (k < cutoff) delete state.requests[k];
+    persist();
+  }
+  const days = last[id] ? Math.round((parseKey(today) - parseKey(last[id])) / 86400000) : null;
+  return { skillId: id, skill: skillById(id), days, done: state.log.some(e => e.req === today) };
+}
+const isRequest = id => { const r = todaysRequest(); return !!r && !r.done && r.skillId === id; };
+
+function requestPanel() {
+  const r = todaysRequest();
+  if (!r) return '';
+  const name = `<b>${skillIcon(r.skill)}${esc(r.skill.name)}</b>`;
+  const text = r.days === null ? `${name} has never been practiced. Today's the day.`
+    : r.days <= 2 ? `Keep ${name} going today. Momentum is everything.`
+    : `${name} hasn't seen action in <b>${r.days} days</b>. Spend any time on it today.`;
+  return `<section class="panel request ${r.done ? 'done' : ''}">
+    <div class="tag">MEMENTOS REQUEST</div>
+    <div class="rq-from">From Morgana</div>
+    <div class="rq-text">${text}</div>
+    <div class="rq-foot"><span class="rq-reward">${r.done ? '✓ Cleared · double XP claimed' : 'Reward: ×2 XP on that skill'}</span>
+      ${r.done ? '' : `<button class="btn primary small" data-act="log-skill" data-id="${r.skillId}">Take it on</button>`}</div>
+  </section>`;
+}
+
+/* ---------- compendium ---------- */
+function longestStreak() {
+  const days = [...new Set(state.log.map(e => e.date))].sort();
+  let best = 0, run = 0, prev = null;
+  for (const k of days) {
+    run = prev && Math.round((parseKey(k) - parseKey(prev)) / 86400000) === 1 ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = k;
+  }
+  return best;
+}
+
+function compendiumCtx() {
+  const d = derive();
+  return {
+    actions: state.log.length,
+    ranks: Object.fromEntries(STAT_ORDER.map(k => [k, statRank(k, d.stats[k]).rank])),
+    skillLv: state.skills.map(s => skillLevel(d.skillXp[s.id] || 0).lvl),
+    confR: state.confidants.map(c => confRank(d.confPts[c.id] || 0).rank),
+    streak: longestStreak(),
+    missions: state.quests.filter(q => q.type === 'once' && questCompletion(q)).length,
+    reviews: Object.keys(state.reviews).length,
+    maxDay: Math.max(0, ...Object.values(d.byDate)),
+    epic: state.log.some(e => e.intensity === 'epic'),
+    hangouts: state.log.filter(e => entryConfs(e).length).length,
+    group: state.log.some(e => entryConfs(e).length >= 2),
+    purchases: state.purchases.length,
+    requests: state.log.filter(e => e.req).length,
+    player: playerLevel(d.total).lvl,
+  };
+}
+
+const PERSONAS = [
+  ['arsene', 'Arsène', 'Fool', 'Log your first action', c => c.actions >= 1],
+  ['zorro', 'Zorro', 'Magician', 'Keep a 7-day streak', c => c.streak >= 7],
+  ['pixie', 'Pixie', 'Lovers', 'Spend time with a confidant', c => c.hangouts >= 1],
+  ['agathion', 'Agathion', 'Chariot', 'Clear a Mementos request', c => c.requests >= 1],
+  ['orpheus', 'Orpheus', 'Fool', 'Seal your first Velvet contract', c => c.reviews >= 1],
+  ['mara', 'Mara', 'Tower', 'Buy your first reward', c => c.purchases >= 1],
+  ['alice', 'Alice', 'Death', 'Clear a mission', c => c.missions >= 1],
+  ['loki', 'Loki', 'Fool', 'Log an Epic action', c => c.epic],
+  ['captainkidd', 'Captain Kidd', 'Chariot', 'Reach Guts rank 3', c => c.ranks.guts >= 3],
+  ['carmen', 'Carmen', 'Lovers', 'Reach Charm rank 3', c => c.ranks.charm >= 3],
+  ['goemon', 'Goemon', 'Emperor', 'Reach Knowledge rank 3', c => c.ranks.knowledge >= 3],
+  ['johanna', 'Johanna', 'Priestess', 'Reach Proficiency rank 3', c => c.ranks.proficiency >= 3],
+  ['milady', 'Milady', 'Empress', 'Reach Kindness rank 3', c => c.ranks.kindness >= 3],
+  ['ishtar', 'Ishtar', 'Lovers', 'Hang out with two confidants at once', c => c.group],
+  ['jackfrost', 'Jack Frost', 'Magician', 'Log 50 actions', c => c.actions >= 50],
+  ['necronomicon', 'Necronomicon', 'Hermit', 'Get a skill to level 10', c => c.skillLv.some(l => l >= 10)],
+  ['hecate', 'Hecate', 'Magician', 'Reach confidant rank 5', c => c.confR.some(r => r >= 5)],
+  ['yoshitsune', 'Yoshitsune', 'Tower', 'Earn 300 XP in a single day', c => c.maxDay >= 300],
+  ['raoul', 'Raoul', 'Fool', 'Get five skills to level 5', c => c.skillLv.filter(l => l >= 5).length >= 5],
+  ['pyrojack', 'Pyro Jack', 'Magician', 'Log 200 actions', c => c.actions >= 200],
+  ['robinhood', 'Robin Hood', 'Justice', 'Keep a 30-day streak', c => c.streak >= 30],
+  ['blackfrost', 'Black Frost', 'Fool', 'Clear 5 missions', c => c.missions >= 5],
+  ['ardha', 'Ardha', 'Temperance', 'Clear 20 Mementos requests', c => c.requests >= 20],
+  ['thanatos', 'Thanatos', 'Death', 'Seal 10 Velvet contracts', c => c.reviews >= 10],
+  ['kaguya', 'Kaguya', 'Moon', 'Max out a confidant (rank 10)', c => c.confR.some(r => r >= 10)],
+  ['seitentaisei', 'Seiten Taisei', 'Chariot', 'Max out any social stat', c => STAT_ORDER.some(k => c.ranks[k] >= 5)],
+  ['lucifer', 'Lucifer', 'Star', 'Reach player level 30', c => c.player >= 30],
+  ['satanael', 'Satanael', 'World', 'Max out all five social stats', c => STAT_ORDER.every(k => c.ranks[k] >= 5)],
+].map(([id, name, arcana, hint, test]) => ({ id, name, arcana, hint, test }));
+const arcanaNum = name => (ARCANA.find(a => a[1] === name) || ['?'])[0];
+
+// Unlocks stick once earned. silent: first launch with existing history — one toast, no fanfare.
+function checkCompendium(silent = false) {
+  const c = compendiumCtx(), fresh = [];
+  for (const p of PERSONAS) if (!state.compendium[p.id] && p.test(c)) { state.compendium[p.id] = dkey(); fresh.push(p); }
+  if (!fresh.length) return;
+  persist();
+  if (silent) toast('COMPENDIUM', `${fresh.length} persona${fresh.length > 1 ? 's' : ''} awakened`);
+  else fresh.forEach(p => queueRankUp({ kicker: `${arcanaNum(p.arcana)} · ${p.arcana}`, big: 'NEW PERSONA', sub: `${p.name} — ${p.hint}`, persona: true }));
+}
+
+function scrCompendium() {
+  const got = PERSONAS.filter(p => state.compendium[p.id]).length;
+  const cards = PERSONAS.map(p => {
+    const d = state.compendium[p.id];
+    return `<div class="pcard ${d ? 'got' : 'locked'}">
+      <div class="pc-arc"><span>${esc(arcanaNum(p.arcana))}</span><em>${esc(p.arcana)}</em></div>
+      <div class="pc-mask">${iconSvg('mask')}</div>
+      <div class="pc-name">${d ? esc(p.name) : '???'}</div>
+      <div class="pc-hint">${esc(p.hint)}</div>
+      ${d ? `<div class="pc-date">Awakened ${fmtMD(d)}</div>` : ''}
+    </div>`;
+  }).join('');
+  return `${head('compendium', 'I am thou, thou art I.')}
+  <div class="pc-progress"><b>${got}<span> / ${PERSONAS.length}</span></b><div>${bar(got / PERSONAS.length)}<em>personas awakened</em></div></div>
+  <div class="pc-grid">${cards}</div>`;
+}
+
+const SCREEN_FN = { status: scrStatus, skills: scrSkills, quests: scrQuests, confidants: scrConfidants, journal: scrJournal, compendium: scrCompendium, velvet: scrVelvet, shop: scrShop, system: scrSystem };
 
 /* ---------- render ---------- */
 function renderSide() {
@@ -1515,6 +1827,14 @@ const ACTIONS = {
     if (r === 'scheduled') toast('IN 5 SECONDS', 'Switch to another app to see the banner');
     else toast('NO NOTIFICATIONS', 'macOS blocked them — System Settings → Notifications');
   },
+  'set-cond': ds => {
+    const k = dkey();
+    if (state.conditions[k] === ds.id) delete state.conditions[k]; else state.conditions[k] = ds.id;
+    persist(); sfx.nav(); render();
+  },
+  'j-tab': ds => { journalTab = ds.id; sfx.nav(); render(); },
+  'cal-month': ds => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + Number(ds.dir), 1); sfx.nav(); render(); },
+  'cal-day': ds => { calDay = ds.id; render(); },
   'more-journal': () => { journalLimit += 60; render(); },
   export: async () => { if (await window.api.exportSave(state)) toast('SAVED', 'Export written'); },
   import: async () => {
@@ -1567,6 +1887,20 @@ document.addEventListener('keydown', e => {
   else if (e.key.toLowerCase() === 'l') { e.preventDefault(); openQuickLog(); }
 });
 
+/* ---------- tooltips: any element with data-tip ---------- */
+document.addEventListener('mouseover', e => {
+  const t = e.target.closest && e.target.closest('[data-tip]'), tip = $('#tip');
+  if (!t) { tip.hidden = true; return; }
+  tip.innerHTML = t.dataset.tip;
+  tip.hidden = false;
+});
+document.addEventListener('mousemove', e => {
+  const tip = $('#tip');
+  if (tip.hidden) return;
+  tip.style.left = Math.min(e.clientX + 16, innerWidth - tip.offsetWidth - 8) + 'px';
+  tip.style.top = Math.min(e.clientY + 16, innerHeight - tip.offsetHeight - 8) + 'px';
+});
+
 /* ---------- dev helpers (used by PL_SHOT screenshots) ---------- */
 window.__seedDemo = () => {
   const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
@@ -1589,10 +1923,12 @@ window.__seedDemo = () => {
       state.log.push({ id: uid(), ts: dt.toISOString(), date: dkey(dt), kind: 'hangout', confId: c.id, stat: c.stat, xp: 25, statPts: 5, cpts: 2, intensity: 'normal', note: 'Good talk.' });
     }
   }
+  for (let day = 60; day >= 0; day--) if (Math.random() < 0.6) state.conditions[dkey(addDays(new Date(), -day))] = ['great', 'good', 'good', 'tired', 'sick'][rnd(0, 4)];
   const lastWk = prevWeek(weekKey(new Date()));
   state.reviews[lastWk] = { grade: 'A', well: 'Shipped the landing page. Gym 4 times.', held: 'Doomscrolling at night.', next: 'Study for CKA every morning.', focus: [state.skills[0].id, state.skills[2].id], completedAt: new Date().toISOString() };
   const q = state.quests[0];
   state.log.push({ id: uid(), ts: new Date().toISOString(), date: dkey(), kind: 'quest', questId: q.id, ...targetInfo(q.target), xp: 25, statPts: 5, intensity: 'normal', note: q.title });
+  checkCompendium(true);
   render();
 };
 window.__demoRankUp = () => queueRankUp({ kicker: 'Knowledge', big: 'RANK UP!', sub: 'Rank 3 — Scholarly', stat: true });
@@ -1602,6 +1938,7 @@ window.__demoRankUp = () => queueRankUp({ kicker: 'Knowledge', big: 'RANK UP!', 
   const raw = await window.api.load();
   state = normalize(raw);
   if (!raw) persist();
+  checkCompendium(true);
   render();
   $('#screen').classList.add('enter');
   setInterval(renderSide, 60 * 1000);
