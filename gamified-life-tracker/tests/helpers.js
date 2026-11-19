@@ -17,7 +17,7 @@ function tempUserData() {
  * Returns { app, page } — `page` is the main window.
  */
 async function launch(userData, { fresh = false } = {}) {
-  const env = { ...process.env, PL_USERDATA: userData };
+  const env = { ...process.env, PL_USERDATA: userData, PL_HIDDEN: '1' }; // no window popping up
   // Set by VS Code's terminal; makes Electron run as plain Node.
   for (const k of Object.keys(env)) if (k.toUpperCase() === 'ELECTRON_RUN_AS_NODE') delete env[k];
   const app = await electron.launch({ args: [APP_DIR], cwd: APP_DIR, env });

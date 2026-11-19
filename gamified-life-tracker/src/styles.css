@@ -439,7 +439,7 @@ kbd {
 .sk-feeds b { color: var(--white); }
 .sk-today { font: italic 900 14px var(--display); color: var(--yellow); margin-top: 2px; }
 .sk-xp { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin: 7px 0 12px; }
-.sk-quick { display: grid; grid-template-columns: repeat(4, 1fr) 34px; gap: 6px; }
+.sk-quick { display: grid; grid-template-columns: repeat(4, 1fr) 34px 34px; gap: 6px; }
 .sk-quick button {
   background: var(--ink-2); border: 1.5px solid #555; color: var(--white);
   font: italic 900 15px var(--display); padding: 6px 0;
@@ -448,6 +448,43 @@ kbd {
 .sk-quick button:hover { background: var(--red); border-color: var(--white); color: var(--on-red); transform: skewX(-10deg) translateY(-2px); }
 .sk-quick button:active { transform: skewX(-10deg) scale(.92); }
 .sk-quick button.note { color: var(--muted); }
+.sk-quick button.timer { color: var(--yellow); font-size: 13px; }
+.sk-quick button.timer.on { background: var(--yellow); border-color: var(--yellow); color: var(--black); }
+
+/* focus timer — sidebar readout above Take Action */
+.timer-chip {
+  -webkit-app-region: no-drag;
+  width: calc(100% - 46px); margin-bottom: 12px; padding: 10px 12px 10px 14px;
+  background: var(--black); border: 2px solid var(--yellow); box-shadow: 5px 5px 0 var(--black);
+  transform: rotate(-1.5deg);
+}
+.tm-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tm-top b {
+  min-width: 0; padding-right: 6px; /* room for the italic overhang, which overflow:hidden would clip */
+  font: italic 900 15px var(--display); text-transform: uppercase; letter-spacing: .5px; color: var(--white);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tm-top em { margin-left: auto; font: italic 800 11px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--yellow); }
+.tm-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--red-hi); box-shadow: 0 0 0 3px rgba(255,42,61,.25); animation: tmPulse 1.2s ease-in-out infinite; }
+.timer-chip.paused .tm-dot { background: var(--muted); box-shadow: none; animation: none; }
+@keyframes tmPulse { 50% { opacity: .35; } }
+.tm-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.tm-row time { flex: 1; min-width: 0; padding-right: 4px; font: italic 900 26px/1 var(--display); color: var(--yellow); font-variant-numeric: tabular-nums; letter-spacing: .5px; white-space: nowrap; }
+.timer-chip.paused time { color: var(--muted); }
+.tm-btn {
+  flex: none; display: grid; place-items: center; width: 32px; height: 28px; padding: 0;
+  background: var(--ink-2); border: 1.5px solid #555; color: var(--white); transform: skewX(-10deg);
+}
+.tm-btn svg { width: 12px; height: 12px; fill: currentColor; transform: skewX(10deg); }
+.tm-btn:hover { border-color: var(--white); }
+.tm-btn.stop { background: var(--yellow); border-color: var(--yellow); color: var(--black); }
+.tm-btn.stop:hover { background: var(--white); border-color: var(--white); }
+
+/* Take Action after a timer */
+.ql-time input { width: 140px; }
+.ql-warn { margin: -6px 0 14px; color: var(--yellow); font-size: 13px; }
+.m-actions .ql-left { margin-right: auto; }
+.j-min { color: var(--yellow); font-weight: 700; font-size: 12px; }
 
 .skill-add {
   min-height: 220px; border: 2px dashed #555; background: transparent; color: var(--muted);
@@ -586,7 +623,7 @@ kbd {
 .seg span small { font: 600 10px var(--body); text-transform: none; letter-spacing: 0; color: var(--muted); }
 .seg label:hover span { border-color: var(--white); color: var(--white); }
 .seg input:checked + span { background: var(--red); border-color: var(--white); color: var(--on-red); box-shadow: 3px 3px 0 var(--white); }
-.seg input:checked + span small { color: rgba(255,255,255,.85); }
+.seg input:checked + span small { color: var(--on-red); }
 
 /* ---------- modal ---------- */
 .modal-back {
@@ -886,6 +923,7 @@ kbd {
   transform: skewX(-8deg); transition: all .12s;
 }
 .tc-row span em { font-style: normal; color: var(--gold-hi); font-size: 11px; }
+.tc-row input:checked + span em { color: var(--on-red); } /* gold on red fails contrast */
 .tc-row label:hover span { border-color: var(--white); color: var(--white); }
 .tc-row input:checked + span { background: var(--red); border-color: var(--white); color: var(--on-red); box-shadow: 3px 3px 0 var(--white); }
 .gain-preview {
