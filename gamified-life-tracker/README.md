@@ -8,6 +8,7 @@ social stats rank up, confidants deepen, missions have deadlines.
 ```bash
 npm install
 npm start
+npm test    # end-to-end tests (Playwright): launches the app with a throwaway save
 ```
 
 Build a standalone app:
