@@ -6,11 +6,32 @@
   "main": "main.js",
   "private": true,
   "scripts": {
-    "start": "env -u ELECTRON_RUN_AS_NODE electron .",
-    "package": "npx --yes @electron/packager . \"Phantom Life\" --platform=darwin --overwrite --out=dist --icon=build/icon.icns --app-bundle-id=local.phantomlife --ignore=^/dist --ignore=^/build",
-    "install_app": "npm run package && rm -rf \"/Applications/Phantom Life.app\" && cp -R \"dist/Phantom Life-darwin-arm64/Phantom Life.app\" /Applications/ && codesign --force --deep --sign - \"/Applications/Phantom Life.app\" && echo Installed to /Applications"
+    "start": "node scripts/start.js",
+    "test": "playwright test",
+    "package": "npx --yes @electron/packager . \"Phantom Life\" --platform=darwin --overwrite --out=dist --icon=build/icon.icns --app-bundle-id=local.phantomlife --ignore=^/dist --ignore=^/build --ignore=^/tests --ignore=^/test-results --ignore=^/playwright",
+    "install_app": "npm run package && rm -rf \"/Applications/Phantom Life.app\" && cp -R \"dist/Phantom Life-darwin-arm64/Phantom Life.app\" /Applications/ && codesign --force --deep --sign - \"/Applications/Phantom Life.app\" && echo Installed to /Applications",
+    "package:win": "electron-builder --win",
+    "install_app:win": "npm run package:win && node scripts/install-win.js"
+  },
+  "build": {
+    "appId": "local.phantomlife",
+    "productName": "Phantom Life",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "package.json", "src/**/*"],
+    "win": { "target": "nsis", "icon": "src/assets/icon.ico" },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "Phantom Life",
+      "createDesktopShortcut": false,
+      "runAfterFinish": true,
+      "artifactName": "Phantom Life Setup.${ext}"
+    }
   },
   "devDependencies": {
-    "electron": "^44.9.0"
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.1",
+    "electron": "^44.9.0",
+    "electron-builder": "^26.18.0"
   }
 }
