@@ -19,7 +19,7 @@
   --gold: #d8b45a;
   --gold-hi: #f3d98b;
   --display: "Avenir Next Condensed", "Futura", "Impact", "Arial Narrow", sans-serif;
-  --body: "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --body: "Avenir Next", "Helvetica Neue", Helvetica, "Segoe UI", Arial, sans-serif;
   --serif: "Bodoni 72", "Didot", Georgia, serif;
   --type: "American Typewriter", "Courier New", monospace;
   --ease: cubic-bezier(.2, .9, .25, 1.2);
@@ -962,7 +962,8 @@ kbd {
 .j-item.receipt .j-xp { color: var(--yellow); }
 
 /* system extras */
-.toggle kbd { margin: 0 2px; }
+.toggle kbd { margin: 0 2px; white-space: nowrap; }
+.toggle .tg-txt { font-weight: inherit; } /* keeps text + <kbd> as one flex item so it wraps as a sentence */
 .time-in {
   margin-left: 6px; background: var(--black); color: var(--white); border: 2px solid #555; padding: 3px 6px;
   font: 600 13px var(--body); color-scheme: dark;
