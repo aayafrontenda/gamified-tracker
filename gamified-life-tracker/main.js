@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, Notification, Tray, Menu, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, Notification, Tray, Menu, session, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { execFile } = require('child_process');
@@ -16,7 +16,10 @@ app.setName('Phantom Life');
 if (process.env.PL_USERDATA) app.setPath('userData', process.env.PL_USERDATA);
 
 // Test runs (screenshots / eval) skip hotkeys, reminders and login items.
-const TEST = !!(process.env.PL_SHOT || process.env.PL_EVAL);
+const TEST = !!(process.env.PL_SHOT || process.env.PL_EVAL || process.env.PL_HIDDEN);
+// Tests and screenshots: never show the window (it would jump in front of whatever you're doing)
+// and switch off animations so every check sees the final state.
+const HIDDEN = !!process.env.PL_HIDDEN;
 let mainWin = null;
 // Reminders and the hotkey belong to the installed app only, so `npm start` next to it
 // doesn't double them. (macOS already keeps the installed app to a single copy; Electron's
@@ -143,6 +146,7 @@ function createWindow() {
     height: 920,
     minWidth: 1120,
     minHeight: 740,
+    show: !HIDDEN,
     backgroundColor: '#0b0b0b',
     // macOS: traffic lights inset into the content. Windows/Linux: frameless top with native
     // min/max/close drawn over the top-right corner (the .dragbar strip is the drag handle).
@@ -154,9 +158,11 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      backgroundThrottling: !process.env.PL_SHOT,
+      backgroundThrottling: !process.env.PL_SHOT && !HIDDEN,
     },
   });
+  if (HIDDEN) win.webContents.on('did-finish-load', () => win.webContents.insertCSS(
+    '*, *::before, *::after { animation: none !important; transition: none !important; }'));
   if (!IS_MAC && app.isPackaged) win.removeMenu();
   // The UI is one local page: never navigate away or open other windows (links, middle-click, drops).
   win.webContents.on('will-navigate', e => e.preventDefault());
@@ -254,14 +260,64 @@ let tray = null;
 function createTray() {
   if (IS_MAC || !BACKGROUND || tray) return;
   tray = new Tray(ICON);
-  tray.setToolTip('Phantom Life');
+  tray.on('click', () => showWindow());
+  refreshTray();
+}
+function refreshTray() {
+  if (!tray) return;
+  tray.setToolTip(timer ? `Phantom Life · ${timerText()}` : 'Phantom Life');
   tray.setContextMenu(Menu.buildFromTemplate([
+    ...(timer ? [
+      { label: timerText(), enabled: false },
+      { label: 'Stop timer', click: () => sendToRenderer('timer-stop') },
+      { type: 'separator' },
+    ] : []),
     { label: 'Open Phantom Life', click: () => showWindow() },
     { label: 'Take action', click: () => sendToRenderer('quick-log') },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]));
-  tray.on('click', () => showWindow());
+}
+
+/* ---------- focus timer: tray readout + away detection ----------
+   The renderer owns the timer (it's in the save); main mirrors it so the tray can show it and so
+   time away from the computer is noticed even with the window closed. */
+let timer = null;        // { label, startedAt, pausedAt, pausedMs, … } as last sent by the renderer
+let awaySince = null;    // when the current idle/sleep stretch began, while the timer runs
+let pendingAway = null;  // an away stretch the renderer hasn't seen yet (window was closed)
+const AWAY_MS = 10 * 60 * 1000;
+const timerRunning = () => !!timer && !timer.pausedAt;
+function timerText() {
+  const end = timer.pausedAt ? Date.parse(timer.pausedAt) : Date.now();
+  const min = Math.max(0, Math.floor((end - Date.parse(timer.startedAt) - (timer.pausedMs || 0)) / 60000));
+  return `${timer.label} — ${Math.floor(min / 60)}:${pad(min % 60)}${timer.pausedAt ? ' (paused)' : ''}`;
+}
+ipcMain.on('timer', (_e, t) => {
+  const changed = JSON.stringify(t) !== JSON.stringify(timer);
+  timer = t || null;
+  if (!timerRunning()) awaySince = null;
+  if (changed) refreshTray();
+});
+ipcMain.handle('pending-away', () => { const a = pendingAway; pendingAway = null; return a; });
+
+function reportAway(from, to) {
+  if (!timerRunning() || to - from < AWAY_MS) return;
+  if (mainWin) { mainWin.webContents.send('timer-away', { from, to }); return; }
+  pendingAway = { from, to };
+  notify('Morgana', `Your ${timer.label} timer kept running while you were away (${Math.round((to - from) / 60000)} min).`, 'status');
+}
+function checkAway() {
+  if (!timerRunning()) { awaySince = null; return; }
+  const idleMs = powerMonitor.getSystemIdleTime() * 1000;
+  if (!awaySince && idleMs >= AWAY_MS) awaySince = Date.now() - idleMs;
+  else if (awaySince && idleMs < 60 * 1000) { reportAway(awaySince, Date.now() - idleMs); awaySince = null; }
+}
+function watchAway() {
+  if (TEST) return;
+  timer = (readSave() || {}).timer || null; // started at login: the window isn't there to tell us
+  powerMonitor.on('suspend', () => { if (timerRunning() && !awaySince) awaySince = Date.now(); });
+  powerMonitor.on('resume', () => { if (awaySince) { reportAway(awaySince, Date.now()); awaySince = null; } });
+  setInterval(() => { checkAway(); refreshTray(); }, 15 * 1000);
 }
 
 /* ---------- Morgana: reminders (run in main, so they work with the window closed) ---------- */
@@ -345,6 +401,7 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionCheckHandler(() => false);
   dailyBackup();
   ensureWinShortcut();
+  watchAway();
   const st = (readSave() || {}).settings || {};
   // Started at login: stay in the background (Dock / tray) — reminders and the hotkey still work.
   if (!openedAtLogin()) createWindow();

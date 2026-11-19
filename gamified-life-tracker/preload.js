@@ -15,4 +15,8 @@ contextBridge.exposeInMainWorld('api', {
   onQuickLog: cb => ipcRenderer.on('quick-log', () => cb()),
   onGo: cb => ipcRenderer.on('go', (_e, screen) => cb(screen)),
   onMorgana: cb => ipcRenderer.on('morgana', (_e, msg) => cb(msg)),
+  timerChanged: timer => ipcRenderer.send('timer', timer),
+  pendingAway: () => ipcRenderer.invoke('pending-away'),
+  onTimerStop: cb => ipcRenderer.on('timer-stop', () => cb()),
+  onTimerAway: cb => ipcRenderer.on('timer-away', (_e, away) => cb(away)),
 });
