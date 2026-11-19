@@ -1,6 +1,6 @@
 # Phantom Life
 
-A Persona 5 styled life tracker for macOS. Treat your life like an RPG: skills level up,
+A Persona 5 styled life tracker for macOS and Windows. Treat your life like an RPG: skills level up,
 social stats rank up, confidants deepen, missions have deadlines.
 
 ## Run
@@ -10,11 +10,19 @@ npm install
 npm start
 ```
 
-Build a standalone app (drag it into /Applications):
+Build a standalone app:
 
 ```bash
-npm run install_app   # builds and copies Phantom Life.app into /Applications
+npm run install_app       # macOS: builds and copies Phantom Life.app into /Applications
+npm run install_app:win   # Windows: builds, copies to %LOCALAPPDATA%\Programs\Phantom Life and launches it
 ```
+
+On Windows the first launch adds **Phantom Life** to the Start Menu (Windows needs that shortcut
+to show notifications). Closing the window keeps it in the system tray — reminders and the hotkey
+keep working; quit from the tray icon. `npm run package:win` only builds into `dist/`.
+
+Reminders, the global hotkey and the tray belong to the installed app only, so `npm start` next to
+it doesn't double them.
 
 ## How it works
 
@@ -34,9 +42,9 @@ npm run install_app   # builds and copies Phantom Life.app into /Applications
   (+50 XP) choosing up to 3 **focus skills** that earn ×1.5 XP the following week.
 - **Shop**: every XP also pays ¥10. Define your own rewards (repeatable or one-time) and buy
   them with what you earned. Receipts can be refunded.
-- **Morgana**: macOS reminders for unfinished dailies, bedtime and the Sunday Velvet Room — they
+- **Morgana**: system notifications for unfinished dailies, bedtime and the Sunday Velvet Room — they
   run in the background while the app is open (window closed is fine). Times are set in System.
-- **Global shortcut** `⌘⇧L` opens Take Action from any app.
+- **Global shortcut** `⌘⇧L` (Windows: `Ctrl+Shift+L`) opens Take Action from any app.
 - **Compendium**: 28 personas that awaken at milestones (streaks, ranks, missions, contracts…).
 - **Mementos requests**: each day Morgana picks a neglected skill — the first action on it earns ×2 XP.
 - **Condition**: log how you feel each day; Igor points out how it affects your output.
@@ -45,8 +53,12 @@ npm run install_app   # builds and copies Phantom Life.app into /Applications
   rank is recalculated from the journal.
 
 Keys: `1`–`8` switch screens · `⌘,` System · `⌘⇧L` take action from anywhere · `L` take action · `⌘↵` submit · `Esc` close.
+On Windows use `Ctrl` instead of `⌘`.
 
 ## Data
 
-Saved to `~/Library/Application Support/Phantom Life/save.json` after every action, with a
-daily backup (last 14 days) in `backups/`. Export/import from the System screen.
+Saved after every action, with a daily backup (last 14 days) in `backups/` next to it.
+Export/import from the System screen.
+
+- macOS: `~/Library/Application Support/Phantom Life/save.json`
+- Windows: `%APPDATA%\Phantom Life\save.json`

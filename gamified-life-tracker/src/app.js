@@ -61,6 +61,21 @@ const SCREENS = [
   { id: 'system',     label: 'System',     sub: 'Save, load, config', menu: false },
 ];
 
+/* ---------- platform ---------- */
+// Shortcut labels and OS wording: ⌘ / Dock / Finder on macOS, Ctrl / tray / Explorer elsewhere.
+const IS_MAC = window.api.platform === 'darwin';
+const IS_WIN = window.api.platform === 'win32';
+const KEY = IS_MAC
+  ? { submit: '⌘↵', hotkey: '⌘⇧L', system: '⌘,' }
+  : { submit: 'Ctrl+Enter', hotkey: 'Ctrl+Shift+L', system: 'Ctrl+,' };
+const modKey = e => IS_MAC ? e.metaKey : e.ctrlKey;
+const OS = IS_MAC
+  ? { bg: 'in the Dock', fileMgr: 'Finder', quit: '<kbd>⌘Q</kbd> stops it', notifSettings: 'macOS blocked them — System Settings → Notifications' }
+  : {
+      bg: 'in the tray', fileMgr: IS_WIN ? 'Explorer' : 'file manager', quit: 'it waits in the tray — Quit from the tray icon stops it',
+      notifSettings: IS_WIN ? 'Windows blocked them — Settings → System → Notifications' : 'Notifications are blocked by the system',
+    };
+
 /* ---------- utils ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -588,7 +603,7 @@ function openQuickLog(preTarget) {
       <label class="fld"><span>Note <i>(optional)</i></span><textarea name="note" rows="2" maxlength="280" placeholder="Deployed the k8s cluster, finally."></textarea></label>
       <div class="m-actions">
         <button type="button" class="btn ghost" data-act="close-modal">Cancel</button>
-        <button class="btn primary">Spend time <kbd>⌘↵</kbd></button>
+        <button class="btn primary">Spend time <kbd>${KEY.submit}</kbd></button>
       </div>
     </form>`, root => {
     const f = root.querySelector('form');
@@ -1167,8 +1182,8 @@ function scrSystem() {
       <div class="tag">PLAYER</div>
       <label class="fld"><span>Codename</span><input id="sys-name" maxlength="30" value="${esc(state.player.name)}"></label>
       <label class="toggle"><input type="checkbox" data-setting="sound" ${state.settings.sound ? 'checked' : ''}><span></span>Sound effects</label>
-      <label class="toggle"><input type="checkbox" data-setting="hotkey" ${state.settings.hotkey !== false ? 'checked' : ''}><span></span>Global shortcut <kbd>⌘⇧L</kbd> opens Take Action from any app</label>
-      <label class="toggle"><input type="checkbox" data-setting="openAtLogin" ${state.settings.openAtLogin ? 'checked' : ''}><span></span>Start at login (quietly, in the Dock)</label>
+      <label class="toggle"><input type="checkbox" data-setting="hotkey" ${state.settings.hotkey !== false ? 'checked' : ''}><span></span><b class="tg-txt">Global shortcut <kbd>${KEY.hotkey}</kbd> opens Take Action from any app</b></label>
+      <label class="toggle"><input type="checkbox" data-setting="openAtLogin" ${state.settings.openAtLogin ? 'checked' : ''}><span></span>Start at login (quietly, ${OS.bg})</label>
     </section>
     <section class="panel morgana">
       <div class="tag">MORGANA · REMINDERS</div>
@@ -1177,7 +1192,7 @@ function scrSystem() {
       <label class="toggle"><input type="checkbox" data-setting="remindBed" ${state.settings.remindBed !== false ? 'checked' : ''}><span></span>“Let's go to sleep” at
         <input type="time" class="time-in" data-setting="bedAt" value="${esc(state.settings.bedAt || '23:30')}"></label>
       <label class="toggle"><input type="checkbox" data-setting="remindVelvet" ${state.settings.remindVelvet !== false ? 'checked' : ''}><span></span>Velvet Room on Sundays at 19:00</label>
-      <p class="muted">Works while Phantom Life is running — closing the window is fine, <kbd>⌘Q</kbd> stops it. Turn on “Start at login” to never miss one.</p>
+      <p class="muted">Works while Phantom Life is running — closing the window is fine, ${OS.quit}. Turn on “Start at login” to never miss one.</p>
       <div class="btn-row"><button class="btn" data-act="test-notify">Test Morgana</button></div>
     </section>
     <section class="panel">
@@ -1187,7 +1202,7 @@ function scrSystem() {
       <div class="btn-row">
         <button class="btn" data-act="export">Export save</button>
         <button class="btn" data-act="import">Import save</button>
-        <button class="btn ghost" data-act="reveal">Show in Finder</button>
+        <button class="btn ghost" data-act="reveal">Show in ${OS.fileMgr}</button>
       </div>
     </section>
     <section class="panel">
@@ -1201,7 +1216,7 @@ function scrSystem() {
         <li><b>Compendium</b> — personas awaken at milestones. <b>Mementos</b> — Morgana's daily request doubles XP on one skill.</li>
         <li><b>Shop</b> — every XP also pays ¥${YEN_PER_XP}. Spend it on rewards you define.</li>
         <li>Made a mistake? Delete it in the <b>Journal</b> — everything recalculates.</li>
-        <li>Keys: <kbd>1</kbd>–<kbd>8</kbd> switch screens · <kbd>⌘,</kbd> System · <kbd>⌘⇧L</kbd> take action from anywhere · <kbd>L</kbd> take action · <kbd>Esc</kbd> close.</li>
+        <li>Keys: <kbd>1</kbd>–<kbd>8</kbd> switch screens · <kbd>${KEY.system}</kbd> System · <kbd>${KEY.hotkey}</kbd> take action from anywhere · <kbd>L</kbd> take action · <kbd>Esc</kbd> close.</li>
       </ul>
     </section>
     <section class="panel danger-zone">
@@ -1727,7 +1742,7 @@ function renderSide() {
     <div class="side-foot">
       <div><b>${esc(state.player.name)}</b><span>LV ${pl.lvl} · ${esc(titleFor(pl.lvl))}</span></div>
       <button class="side-wallet" data-act="go" data-id="shop" title="Shop">${fmtYen(D ? D.yen : 0)}</button>
-      <button class="side-gear ${screen === 'system' ? 'on' : ''}" data-act="go" data-id="system" title="System (⌘,)">${iconSvg('gear')}</button>
+      <button class="side-gear ${screen === 'system' ? 'on' : ''}" data-act="go" data-id="system" title="System (${KEY.system})">${iconSvg('gear')}</button>
     </div>`;
 }
 
@@ -1825,7 +1840,7 @@ const ACTIONS = {
   'test-notify': async () => {
     const r = await window.api.testNotify();
     if (r === 'scheduled') toast('IN 5 SECONDS', 'Switch to another app to see the banner');
-    else toast('NO NOTIFICATIONS', 'macOS blocked them — System Settings → Notifications');
+    else toast('NO NOTIFICATIONS', OS.notifSettings);
   },
   'set-cond': ds => {
     const k = dkey();
@@ -1868,7 +1883,7 @@ document.addEventListener('change', e => {
   if (key) {
     state.settings[key] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     persist(); sfx.ok();
-    if (key === 'hotkey') window.api.setHotkey(e.target.checked).then(ok => { if (e.target.checked && !ok) toast('SHORTCUT TAKEN', '⌘⇧L is used by another app'); });
+    if (key === 'hotkey') window.api.setHotkey(e.target.checked).then(ok => { if (e.target.checked && !ok) toast('SHORTCUT TAKEN', `${KEY.hotkey} is used by another app`); });
     if (key === 'openAtLogin') window.api.setLogin(e.target.checked);
   }
 });
@@ -1879,7 +1894,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.key === 'Escape') { closeModal(); return; }
-  if (e.metaKey && e.key === ',') { e.preventDefault(); closeModal(); go('system'); return; }
+  if (modKey(e) && e.key === ',') { e.preventDefault(); closeModal(); go('system'); return; }
   const tag = (e.target.tagName || '').toLowerCase();
   if (['input', 'textarea', 'select'].includes(tag) || $('#modal-root').firstChild || e.metaKey || e.ctrlKey || e.altKey) return;
   const n = Number(e.key);
