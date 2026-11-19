@@ -65,9 +65,15 @@ npm install
 npm run install_app:win
 ```
 
-Builds `dist/Phantom Life Setup.exe` and runs it: a one-click installer, no admin rights needed. It adds
-Phantom Life to the Start Menu and to Settings → Apps for uninstalling. The installer is a single file
-you can pass to someone else. Closing the window keeps the app in the system tray; quit from the tray icon.
+Builds `dist/squirrel/Phantom Life Setup.exe` and runs it. No wizard: double-click, an animated splash
+plays for a few seconds while it installs (just for you, no admin rights), and the app opens. It adds
+Phantom Life to the Start menu, the desktop, and Settings → Apps for uninstalling. Running a newer
+installer updates in place; your progress survives updates and uninstalling. The installer is a single
+file you can pass to someone else. Closing the app's window keeps it in the system tray; quit from the
+tray icon.
+
+The splash is drawn in `build/installer/splash.html`; after changing it, run `npm run splash` to
+regenerate `build/installer/loading.gif`.
 
 **macOS**
 
