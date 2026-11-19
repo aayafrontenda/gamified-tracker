@@ -1,6 +1,15 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, Notification, Tray, Menu, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { execFile } = require('child_process');
+
+const IS_MAC = process.platform === 'darwin';
+const IS_WIN = process.platform === 'win32';
+const ICON = path.join(__dirname, 'src', 'assets', 'icon.ico'); // Windows/Linux window + tray icon
+const APP_ID = 'local.phantomlife';
+// Fixed so the Start Menu shortcut and the running app agree (Electron picks a random one per run
+// otherwise). Lets toasts that moved to the Action Center still activate the app.
+const TOAST_CLSID = '{482CAAF0-BF9F-4558-8EFB-FE741FC19CD3}';
 
 app.setName('Phantom Life');
 // Dev/testing hook: point the save at a throwaway folder.
@@ -11,8 +20,33 @@ const TEST = !!(process.env.PL_SHOT || process.env.PL_EVAL);
 let mainWin = null;
 // Reminders and the hotkey belong to the installed app only, so `npm start` next to it
 // doesn't double them. (macOS already keeps the installed app to a single copy; Electron's
-// own single-instance lock rejects ad-hoc signed builds, so it isn't used.)
+// own single-instance lock rejects ad-hoc signed builds, so it's only used on Windows/Linux.)
 const BACKGROUND = !TEST && app.isPackaged;
+const PRIMARY = IS_MAC || !BACKGROUND || app.requestSingleInstanceLock();
+if (!PRIMARY) app.quit();
+else app.on('second-instance', () => showWindow());
+
+// Start-at-login: macOS reports it itself; Windows/Linux get a flag in the login command.
+const LOGIN_OPTS = IS_MAC ? {} : { args: ['--hidden'] };
+const openedAtLogin = () => IS_MAC ? app.getLoginItemSettings().wasOpenedAtLogin : process.argv.includes('--hidden');
+
+// Windows only shows toasts for an app with an AppUserModelID that a Start Menu shortcut
+// carries. The installer creates the shortcut; rewriting it here adds the toast activator CLSID
+// and covers a build run straight from dist/win-unpacked.
+function ensureWinShortcut() {
+  if (!IS_WIN || !BACKGROUND) return;
+  app.setAppUserModelId(APP_ID);
+  app.setToastActivatorCLSID(TOAST_CLSID);
+  try {
+    const lnk = path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Phantom Life.lnk');
+    shell.writeShortcutLink(lnk, fs.existsSync(lnk) ? 'replace' : 'create', {
+      target: process.execPath, appUserModelId: APP_ID, toastActivatorClsid: TOAST_CLSID, icon: process.execPath, iconIndex: 0,
+      description: 'Phantom Life — take your time.',
+    });
+  } catch (e) {
+    console.error('shortcut failed', e);
+  }
+}
 
 const savePath = () => path.join(app.getPath('userData'), 'save.json');
 const backupDir = () => path.join(app.getPath('userData'), 'backups');
@@ -78,15 +112,29 @@ ipcMain.handle('import', async () => {
 ipcMain.handle('reveal-save', () => shell.showItemInFolder(savePath()));
 ipcMain.handle('set-hotkey', (_e, on) => applyHotkey(on));
 ipcMain.handle('set-login', (_e, on) => {
-  if (!TEST) app.setLoginItemSettings({ openAtLogin: !!on });
-  return app.getLoginItemSettings().openAtLogin;
+  // Outside macOS a dev run would register the bare electron.exe, so only the installed app does it.
+  if (!TEST && (IS_MAC || app.isPackaged)) app.setLoginItemSettings({ openAtLogin: !!on, ...LOGIN_OPTS });
+  return app.getLoginItemSettings(LOGIN_OPTS).openAtLogin;
 });
 // Delayed so the user can switch to another app: macOS shows no banner for the focused app.
-ipcMain.handle('test-notify', () => {
-  if (!Notification.isSupported()) return 'unsupported';
+ipcMain.handle('test-notify', async () => {
+  if (!Notification.isSupported() || await winToastsBlocked()) return 'unsupported';
   setTimeout(() => remind('dailies', true), 5000);
   return 'scheduled';
 });
+
+// Windows drops toasts silently when they're switched off — for all apps, or for this one
+// (Settings → System → Notifications). Both switches are plain registry values.
+function winToastsBlocked() {
+  if (!IS_WIN) return Promise.resolve(false);
+  const isOff = (key, name) => new Promise(res =>
+    execFile('reg', ['query', key, '/v', name], { windowsHide: true }, (err, out) => res(!err && /REG_DWORD\s+0x0\s*$/m.test(out))));
+  const base = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion';
+  return Promise.all([
+    isOff(`${base}\\PushNotifications`, 'ToastEnabled'),
+    isOff(`${base}\\Notifications\\Settings\\${APP_ID}`, 'Enabled'),
+  ]).then(r => r.some(Boolean));
+}
 ipcMain.handle('save-path', () => savePath());
 
 function createWindow() {
@@ -96,15 +144,23 @@ function createWindow() {
     minWidth: 1120,
     minHeight: 740,
     backgroundColor: '#0b0b0b',
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 18, y: 16 },
+    // macOS: traffic lights inset into the content. Windows/Linux: frameless top with native
+    // min/max/close drawn over the top-right corner (the .dragbar strip is the drag handle).
+    ...(IS_MAC
+      ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 16 } }
+      : { titleBarStyle: 'hidden', titleBarOverlay: { color: '#0b0b0b', symbolColor: '#f4f2ec', height: 34 }, icon: ICON }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
       backgroundThrottling: !process.env.PL_SHOT,
     },
   });
+  if (!IS_MAC && app.isPackaged) win.removeMenu();
+  // The UI is one local page: never navigate away or open other windows (links, middle-click, drops).
+  win.webContents.on('will-navigate', e => e.preventDefault());
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.loadFile(path.join(__dirname, 'src', 'index.html'));
   mainWin = win;
   win.on('closed', () => { if (mainWin === win) mainWin = null; });
@@ -184,6 +240,21 @@ function applyHotkey(on) {
   return globalShortcut.isRegistered(HOTKEY);
 }
 
+/* ---------- tray (Windows/Linux): keeps the app alive with the window closed ---------- */
+let tray = null;
+function createTray() {
+  if (IS_MAC || !BACKGROUND || tray) return;
+  tray = new Tray(ICON);
+  tray.setToolTip('Phantom Life');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Open Phantom Life', click: () => showWindow() },
+    { label: 'Take action', click: () => sendToRenderer('quick-log') },
+    { type: 'separator' },
+    { label: 'Quit', click: () => app.quit() },
+  ]));
+  tray.on('click', () => showWindow());
+}
+
 /* ---------- Morgana: reminders (run in main, so they work with the window closed) ---------- */
 const pad = n => String(n).padStart(2, '0');
 const dkey = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -259,11 +330,17 @@ function remind(kind, force = false) {
 const checkReminders = () => ['dailies', 'bed', 'velvet'].forEach(k => remind(k));
 
 app.whenReady().then(() => {
+  if (!PRIMARY) return;
+  // No camera, mic, location, etc. — the renderer never needs a web permission.
+  session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
+  session.defaultSession.setPermissionCheckHandler(() => false);
   dailyBackup();
+  ensureWinShortcut();
   const st = (readSave() || {}).settings || {};
-  // Started at login: stay in the background (Dock) — reminders and the hotkey still work.
-  if (!app.getLoginItemSettings().wasOpenedAtLogin) createWindow();
+  // Started at login: stay in the background (Dock / tray) — reminders and the hotkey still work.
+  if (!openedAtLogin()) createWindow();
   if (BACKGROUND) {
+    createTray();
     applyHotkey(st.hotkey !== false);
     setTimeout(checkReminders, 5000);
     setInterval(checkReminders, 30 * 1000);
@@ -275,6 +352,7 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
+// macOS keeps running in the Dock; the installed app elsewhere keeps running in the tray.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (!IS_MAC && !tray) app.quit();
 });
