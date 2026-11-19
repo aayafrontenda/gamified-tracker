@@ -1,0 +1,64 @@
+<!doctype html>
+<!-- Install splash, rendered frame by frame into build/installer/loading.gif by scripts/make-splash.js.
+     Every animation loops seamlessly within LOOP_MS (2.4s): durations are 2.4s, 1.2s or 0.6s. -->
+<html><head><meta charset="utf-8"><style>
+html, body { margin: 0; overflow: hidden; background: #0b0b0b; }
+.splash {
+  position: relative; width: 600px; height: 340px; overflow: hidden;
+  background: radial-gradient(circle at 1px 1px, rgba(255,255,255,.06) 1px, transparent 1.5px) 0 0 / 7px 7px, #0b0b0b;
+}
+
+/* the red slash; its halftone dots drift one tile per loop */
+.slash {
+  position: absolute; left: -70px; top: -40px; width: 330px; height: 430px; transform: skewX(-16deg);
+  background:
+    radial-gradient(circle at 2px 2px, rgba(0,0,0,.24) 1.4px, transparent 2px) 0 0 / 9px 9px,
+    linear-gradient(160deg, #ff2a3d, #e5001c 45%, #9c0012);
+  animation: dots 2.4s linear infinite;
+}
+@keyframes dots { to { background-position: 18px 18px, 0 0; } }
+.shard { position: absolute; left: 150px; bottom: -30px; width: 230px; height: 120px; background: #1d1d1d;
+  clip-path: polygon(14% 0, 100% 30%, 86% 100%, 0 100%); }
+
+/* ransom-note title, letters twitch in P5's stepped way */
+.word { position: absolute; display: flex; }
+.w1 { left: 54px; top: 54px; font-size: 64px; transform: rotate(-6deg); }
+.w2 { left: 120px; top: 150px; font-size: 76px; transform: rotate(-3deg); }
+.l { display: inline-grid; place-items: center; padding: 0 7px 3px; margin-right: -2px; line-height: 1.02;
+  box-shadow: 4px 4px 0 #0b0b0b; animation: twitch 1.2s steps(1) infinite; }
+.l:nth-child(2n) { animation-delay: -.6s; }
+.l:nth-child(3n) { animation-name: twitch2; }
+@keyframes twitch { 0% { transform: rotate(-3deg); } 50% { transform: rotate(2.5deg) translateY(-2px); } }
+@keyframes twitch2 { 0% { transform: rotate(4deg) translateY(1px); } 50% { transform: rotate(-2deg); } }
+.w { background: #f4f2ec; color: #0b0b0b; font-family: Georgia, serif; font-weight: 900; }
+.b { background: #0b0b0b; color: #f4f2ec; font: italic 900 1em Impact, "Arial Narrow", sans-serif; outline: 3px solid #f4f2ec; outline-offset: -2px; }
+.r { background: #e5001c; color: #fff; font: 900 1em Impact, "Arial Narrow", sans-serif; outline: 3px solid #0b0b0b; outline-offset: -2px; }
+.t { background: #f4f2ec; color: #e5001c; font-family: "Courier New", monospace; font-weight: 700; }
+.n { background: none; box-shadow: none; color: #f4f2ec; font: italic 900 1em Impact, sans-serif; text-shadow: 4px 4px 0 #e5001c; }
+
+.star { position: absolute; right: 52px; top: 26px; width: 70px; height: 70px; background: #f4f2ec;
+  clip-path: polygon(50% 0, 64% 22%, 100% 18%, 82% 50%, 100% 86%, 62% 80%, 44% 100%, 34% 78%, 0 84%, 16% 50%, 0 14%, 36% 20%);
+  animation: spin 2.4s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* status + indeterminate bar */
+.status { position: absolute; right: 34px; bottom: 34px; width: 210px; transform: rotate(-3deg); }
+.status b { display: block; font: italic 900 22px Impact, "Arial Narrow", sans-serif; letter-spacing: 1px; color: #f4f2ec; text-shadow: 3px 3px 0 #e5001c; }
+.status small { display: block; margin: 3px 0 10px; font: 700 11px "Segoe UI", Arial, sans-serif; letter-spacing: 2px; color: #ffe14a; }
+.bar { position: relative; height: 12px; border: 2px solid #f4f2ec; overflow: hidden; transform: skewX(-14deg); background: #0b0b0b; }
+.bar i { position: absolute; top: 0; bottom: 0; width: 45%; background: #e5001c;
+  box-shadow: 0 0 0 2px #0b0b0b inset; animation: sweep 1.2s linear infinite; }
+@keyframes sweep { from { left: -45%; } to { left: 100%; } }
+</style></head>
+<body>
+<div class="splash">
+  <div class="slash"></div><div class="shard"></div><div class="star"></div>
+  <div class="word w1"><span class="l w">P</span><span class="l r">H</span><span class="l b">A</span><span class="l t">N</span><span class="l w">T</span><span class="l r">O</span><span class="l n">M</span></div>
+  <div class="word w2"><span class="l b">L</span><span class="l w">I</span><span class="l r">F</span><span class="l t">E</span></div>
+  <div class="status"><b>SETTING UP…</b><small>TAKE YOUR TIME</small><div class="bar"><i></i></div></div>
+</div>
+<script>
+  // scripts/make-splash.js calls this for each frame: freeze every animation at time t (ms).
+  window.seek = t => document.getAnimations().forEach(a => { a.pause(); a.currentTime = t; });
+</script>
+</body></html>
