@@ -261,6 +261,7 @@ kbd {
 .btn.ghost:hover { color: var(--black); }
 .btn.small { padding: 5px 12px; font-size: 13px; }
 .btn kbd { margin-left: 6px; font-size: 10px; }
+.btn.primary kbd { opacity: 1; } /* faded white on red fails contrast */
 .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 
 .ic {
@@ -1129,4 +1130,186 @@ g:hover > .ch-bar { fill: var(--red-hi); }
 
 @media (max-width: 1360px) {
   .cal-wrap, .charts { grid-template-columns: 1fr; }
+}
+
+/* ---------- new game: character creation ---------- */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* The app underneath is hidden (also from Tab) while a character is being created. */
+body.ng-open #app, body.ng-open .dragbar { visibility: hidden; }
+.ng {
+  position: fixed; inset: 0; z-index: 95;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,.035) 1px, transparent 1.5px) 0 0 / 7px 7px,
+    var(--black);
+}
+.ng-drag { position: fixed; inset: 0 0 auto 0; height: 34px; -webkit-app-region: drag; z-index: 3; }
+.ng button, .ng input, .ng select, .ng label { -webkit-app-region: no-drag; }
+
+/* title screen: one red slash, the logo, a slanted menu */
+.ng-title { display: grid; align-items: center; overflow: hidden; }
+.ng-title::before {
+  content: ""; position: absolute; top: -10%; bottom: -10%; left: -12%; width: 58%;
+  background:
+    radial-gradient(circle at 2px 2px, rgba(0,0,0,.22) 1.3px, transparent 1.8px) 0 0 / 9px 9px,
+    linear-gradient(160deg, var(--red-hi), var(--red) 45%, var(--red-lo));
+  transform: skewX(-14deg);
+}
+.ng-title::after {
+  content: ""; position: absolute; right: -6%; bottom: -12%; width: 46%; height: 62%;
+  background: var(--ink-2); clip-path: polygon(22% 0, 100% 18%, 100% 100%, 0 100%); opacity: .9;
+}
+.ng-title-in { position: relative; z-index: 2; padding-left: 8vw; animation: ngIn .7s var(--ease) both; }
+.ng-logo { margin: 0; font-size: clamp(72px, 9vw, 132px); line-height: 1.04; outline: none; transform: rotate(-4deg); }
+/* red letters sit on the red slash: give them a black edge so they read */
+.ng-logo .rn-2 { box-shadow: 0 0 0 4px var(--black), 7px 7px 0 4px var(--black); }
+.ng-logo .rn-4 { text-shadow: 4px 4px 0 var(--black); }
+.ng-tagline {
+  margin: 56px 0 44px; font: italic 800 20px var(--display); letter-spacing: 2px; text-transform: uppercase;
+  color: var(--white); text-shadow: 3px 3px 0 var(--black);
+}
+.ng-menu { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.ng-mi {
+  position: relative; isolation: isolate; background: none; border: 0; padding: 4px 18px 4px 10px;
+  font: italic 900 42px/1.1 var(--display); text-transform: uppercase; letter-spacing: -.5px;
+  color: var(--white); text-shadow: 3px 3px 0 var(--black); transform: rotate(-3deg);
+  animation: ngIn .6s var(--ease) both;
+}
+.ng-mi:nth-child(2) { transform: rotate(-1.5deg) translateX(18px); animation-delay: .08s; }
+.ng-mi:nth-child(3) { transform: rotate(0deg) translateX(36px); animation-delay: .16s; }
+.ng-mi::before {
+  content: ""; position: absolute; inset: -4px -12px; z-index: -1; background: var(--white);
+  clip-path: polygon(0 12%, 100% 0, 96% 88%, 4% 100%); transform: scaleX(0); transform-origin: left;
+  transition: transform .16s var(--ease);
+}
+.ng-mi:hover, .ng-mi:focus-visible { color: var(--black); text-shadow: none; outline: none; }
+.ng-mi:hover::before, .ng-mi:focus-visible::before { transform: scaleX(1); }
+@keyframes ngIn { from { opacity: 0; transform: translateY(18px) rotate(-3deg); } }
+
+/* wizard: red side panel with steps + live character card, form on the right */
+.ng-wizard { display: grid; grid-template-columns: 360px 1fr; }
+.ng-side { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 28px; padding: 70px 30px 30px 30px; overflow: hidden; }
+.ng-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ng-step {
+  display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 4px 0 4px 4px;
+  transform: rotate(calc(-4deg + var(--i) * 1.4deg)) translateX(calc(var(--i) * 4px));
+}
+.ng-step b { width: 14px; font: 800 13px var(--body); color: var(--black); }
+.ng-step span {
+  position: relative; padding: 2px 14px 2px 8px;
+  font: italic 900 27px/1 var(--display); text-transform: uppercase; letter-spacing: -.3px;
+  color: var(--white); text-shadow: 3px 3px 0 var(--black);
+}
+.ng-step:disabled { cursor: default; }
+.ng-step:disabled span { opacity: .5; }
+.ng-step:not(:disabled):not(.on):hover span { animation: jitter .25s steps(2) 1; }
+.ng-step.on b { color: var(--white); }
+.ng-step.on span { color: var(--black); text-shadow: none; }
+.ng-step.on span::before {
+  content: ""; position: absolute; inset: -5px -10px; z-index: -1; background: var(--white);
+  clip-path: polygon(0 12%, 100% 0, 96% 88%, 4% 100%);
+}
+.ng-step:focus-visible { outline: 3px solid var(--yellow); outline-offset: 4px; }
+
+.ng-card {
+  position: relative; margin-top: auto; padding: 16px 18px 16px;
+  background: var(--black); border: 3px solid var(--white); box-shadow: 8px 8px 0 var(--black);
+  transform: rotate(-1.5deg);
+}
+.ng-card-name { margin: 10px 0 6px; font-size: 28px; min-height: 38px; }
+.ng-card-lv { font: italic 800 13px var(--display); letter-spacing: 1px; text-transform: uppercase; color: var(--red-hi); }
+.ng-card-sk { list-style: none; margin: 14px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.ng-card-sk li { display: flex; align-items: center; gap: 9px; font-weight: 700; }
+.ng-card-sk .ico { width: 18px; height: 18px; margin: 0; }
+.ng-card-sk .sk-mono { font-size: 11px; width: 18px; }
+.ng-card-empty, .ng-card-more { color: var(--muted); font-weight: 600 !important; }
+.ng-card-stats { display: flex; flex-wrap: wrap; gap: 5px; }
+.ng-card-stats span {
+  padding: 2px 7px; border: 1px solid #555; color: var(--muted);
+  font: italic 800 11px var(--display); letter-spacing: .8px; text-transform: uppercase;
+}
+.ng-card-stats span.on { border-color: var(--white); color: var(--white); }
+.ng-card-q { margin-top: 10px; font: italic 800 13px var(--display); letter-spacing: 1px; text-transform: uppercase; color: var(--yellow); }
+
+.ng-main { display: flex; flex-direction: column; min-height: 0; padding: 58px 64px 28px 56px; }
+.ng-body { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 18px 10px 4px; }
+.ng-body::-webkit-scrollbar { width: 10px; }
+.ng-body::-webkit-scrollbar-thumb { background: var(--red); border: 3px solid var(--black); }
+.ng-main h1 { margin: 0 0 10px; font-size: 54px; outline: none; }
+.ng-lead { max-width: 62ch; margin: 0 0 28px; color: #cfc9c0; font-size: 16px; line-height: 1.55; }
+.ng-hint { color: var(--muted); margin: 6px 0 14px; }
+.ng-error { margin: 12px 0 0; color: var(--red-hi); font-weight: 700; }
+.ng-nav { display: flex; justify-content: space-between; align-items: center; padding-top: 18px; border-top: 2px solid var(--line); }
+
+.ng-fs { min-width: 0; margin: 0 0 24px; padding: 0; border: 0; }
+.ng-fs legend {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 0;
+  font: italic 900 15px var(--display); letter-spacing: 1.5px; text-transform: uppercase; color: var(--red-hi);
+}
+.ng-fs legend .ico { width: 18px; height: 18px; margin: 0; }
+
+/* step 1 — the codename */
+.ng-name-in input {
+  width: min(560px, 100%); padding: 12px 18px;
+  font: italic 900 34px var(--display); letter-spacing: .5px;
+  background: var(--ink); border: 3px solid var(--white); box-shadow: 6px 6px 0 var(--red);
+}
+.ng-name-preview { margin-top: 30px; font-size: clamp(48px, 6vw, 82px); min-height: 1.4em; transform: rotate(-3deg); transform-origin: left; }
+
+/* step 2 — life areas */
+.ng-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.ng-tile { position: relative; cursor: pointer; }
+.ng-tile input, .ng-check input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.ng-tile > span {
+  display: flex; flex-direction: column; gap: 6px; height: 100%; padding: 14px 14px 12px;
+  background: var(--ink); border: 2px solid #333;
+  transition: transform .12s var(--ease), border-color .12s, background .12s;
+}
+.ng-tile .ico { width: 26px; height: 26px; margin: 0; }
+.ng-tile b { font: italic 900 18px/1.1 var(--display); text-transform: uppercase; letter-spacing: .3px; }
+.ng-tile small { color: var(--muted); font-size: 12px; font-weight: 600; }
+.ng-tile:hover > span { border-color: var(--white); transform: translateY(-2px); }
+.ng-tile input:checked + span {
+  background: var(--red); border-color: var(--white); color: var(--on-red);
+  box-shadow: 4px 4px 0 var(--white); transform: rotate(-1.5deg);
+}
+.ng-tile input:checked + span small { color: var(--on-red); }
+.ng-tile input:focus-visible + span, .ng-check input:focus-visible + span { outline: 3px solid var(--yellow); outline-offset: 3px; }
+
+.ng-skills { list-style: none; max-width: 680px; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ng-skills li { display: grid; grid-template-columns: 30px 1fr 150px 32px; align-items: center; gap: 10px; }
+.ng-sk-ico { display: grid; place-items: center; }
+.ng-sk-ico .ico { width: 20px; height: 20px; margin: 0; }
+.ng-skills small { color: var(--muted); font-size: 12px; }
+.ng :where(input:not([type=checkbox]):not([type=time]), select) { /* :where keeps this easy to override */
+  padding: 8px 10px; background: var(--ink); color: var(--white);
+  border: 2px solid #444; font: 600 14px var(--body); outline: none;
+}
+.ng input:focus, .ng select:focus { border-color: var(--white); box-shadow: 4px 4px 0 var(--red); }
+.ng-own { display: flex; gap: 8px; max-width: 680px; }
+.ng-own input { flex: 1; }
+
+/* step 3 — quests */
+.ng-q { display: grid; grid-template-columns: 56px 1fr 70px; align-items: center; gap: 12px; max-width: 700px; padding: 4px 0; }
+.ng-check { cursor: pointer; display: inline-flex; }
+.ng-check > span:first-of-type {
+  position: relative; width: 46px; height: 22px; border: 2px solid var(--white);
+  background: var(--ink-2); transform: skewX(-12deg);
+}
+.ng-check > span:first-of-type::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 14px;
+  background: var(--muted); transition: all .18s var(--ease);
+}
+.ng-check input:checked + span { background: var(--red); }
+.ng-check input:checked + span::after { left: 24px; background: var(--white); }
+.ng-q:not(.on) .ng-qt { color: var(--muted); }
+.ng-qtype { font: italic 800 12px var(--display); letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+
+/* step 4 — ready */
+.ng-ready { display: flex; gap: 22px; flex-wrap: wrap; }
+.ng-ready input { width: 170px; color-scheme: dark; }
+.ng-sum { margin: 10px 0 0; font-size: 17px; }
+.ng-first {
+  display: inline-block; margin: 26px 0 0; padding: 6px 16px;
+  font: italic 900 20px var(--display); letter-spacing: 1px; text-transform: uppercase;
+  background: var(--yellow); color: var(--black); transform: rotate(-2deg); box-shadow: 4px 4px 0 var(--red);
 }

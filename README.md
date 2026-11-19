@@ -19,6 +19,9 @@ Runs on **macOS** and **Windows**. Everything stays on your computer: no account
 
 ![Compendium](docs/screenshots/compendium.jpg)
 
+- **New game**: the first launch walks you through creating your character — a codename, the parts
+  of your life you want to grow (each becomes a skill), and a few starter quests. Nothing is saved
+  until you press Start; System → New game runs it again, and you can still go back.
 - **Take action** (`L`): pick every skill (or social stat) the activity trained, plus an effort level —
   Light +10 · Normal +25 · Heavy +50 · Epic +100 XP. Each chosen skill gets the full XP; each social
   stat is credited once even if several chosen skills feed it; player XP counts once.

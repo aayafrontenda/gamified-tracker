@@ -210,18 +210,11 @@ function reward(name, price, icon, once = false) {
   return { id: uid(), name, price, icon, once, createdAt: new Date().toISOString() };
 }
 
+const newSkill = (name, icon, stat) => ({ id: uid(), name, icon, stat, createdAt: new Date().toISOString() });
+const newQuest = (title, type, target, inten) => ({ id: uid(), title, type, target, intensity: inten, deadline: '', createdAt: new Date().toISOString() });
+
+// A blank game: no skills or quests yet — character creation (new game section) fills them in.
 function defaultState() {
-  const sk = (name, icon, stat) => ({ id: uid(), name, icon, stat, createdAt: new Date().toISOString() });
-  const skills = [
-    sk('DevOps', 'server', 'proficiency'),
-    sk('Frontend', 'code', 'knowledge'),
-    sk('Sports', 'dumbbell', 'guts'),
-    sk('Style', 'mask', 'charm'),
-    sk('Reading', 'book', 'knowledge'),
-    sk('Helping Others', 'heart', 'kindness'),
-  ];
-  const by = n => 'skill:' + skills.find(s => s.name === n).id;
-  const q = (title, type, target, inten) => ({ id: uid(), title, type, target, intensity: inten, deadline: '', createdAt: new Date().toISOString() });
   return {
     version: 1,
     player: { name: 'Joker' },
@@ -241,16 +234,32 @@ function defaultState() {
     conditions: {},
     requests: {},
     compendium: {},
-    skills,
-    quests: [
-      q('Work out', 'daily', by('Sports'), 'normal'),
-      q('Read 20 pages', 'daily', by('Reading'), 'light'),
-      q('Push a commit on a side project', 'daily', by('Frontend'), 'normal'),
-      q('Call family', 'weekly', 'stat:kindness', 'normal'),
-    ],
+    skills: [],
+    quests: [],
     confidants: [],
     log: [],
   };
+}
+
+// A ready-made character for demos, screenshots and tests.
+function sampleState() {
+  const s = defaultState();
+  s.skills = [
+    newSkill('DevOps', 'server', 'proficiency'),
+    newSkill('Frontend', 'code', 'knowledge'),
+    newSkill('Sports', 'dumbbell', 'guts'),
+    newSkill('Style', 'mask', 'charm'),
+    newSkill('Reading', 'book', 'knowledge'),
+    newSkill('Helping Others', 'heart', 'kindness'),
+  ];
+  const by = n => 'skill:' + s.skills.find(x => x.name === n).id;
+  s.quests = [
+    newQuest('Work out', 'daily', by('Sports'), 'normal'),
+    newQuest('Read 20 pages', 'daily', by('Reading'), 'light'),
+    newQuest('Push a commit on a side project', 'daily', by('Frontend'), 'normal'),
+    newQuest('Call family', 'weekly', 'stat:kindness', 'normal'),
+  ];
+  return s;
 }
 
 const obj = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
@@ -1718,6 +1727,277 @@ function scrCompendium() {
 
 const SCREEN_FN = { status: scrStatus, skills: scrSkills, quests: scrQuests, confidants: scrConfidants, journal: scrJournal, compendium: scrCompendium, velvet: scrVelvet, shop: scrShop, system: scrSystem };
 
+/* ---------- new game: character creation ----------
+   Shown on first launch (no save yet) and from System → New game. Nothing is saved until Start,
+   so closing midway — or "Back to my game" — leaves the current save untouched. */
+const LIFE_AREAS = [
+  // id, skill name, icon, social stat it feeds, suggested quests [title, type, effort]
+  ['study', 'Study', 'cap', 'knowledge', [['Study for 45 minutes', 'daily', 'normal'], ["Review the week's notes", 'weekly', 'light']]],
+  ['reading', 'Reading', 'book', 'knowledge', [['Read 20 pages', 'daily', 'light']]],
+  ['languages', 'Languages', 'globe', 'knowledge', [['15 minutes of practice', 'daily', 'light'], ['Talk with a native speaker', 'weekly', 'heavy']]],
+  ['coding', 'Coding', 'code', 'proficiency', [['Push a commit', 'daily', 'normal'], ['Ship something small', 'weekly', 'heavy']]],
+  ['career', 'Career', 'briefcase', 'proficiency', [['Finish the most important task', 'daily', 'normal'], ['Plan next week', 'weekly', 'light']]],
+  ['finance', 'Finance', 'chart', 'proficiency', [["Log today's spending", 'daily', 'light'], ['Review the budget', 'weekly', 'normal']]],
+  ['cooking', 'Cooking', 'utensils', 'proficiency', [['Cook a real meal', 'daily', 'normal'], ['Try a new recipe', 'weekly', 'normal']]],
+  ['fitness', 'Fitness', 'dumbbell', 'guts', [['Work out', 'daily', 'normal']]],
+  ['running', 'Running', 'flame', 'guts', [['Go for a run', 'daily', 'normal'], ['Long run', 'weekly', 'heavy']]],
+  ['health', 'Health & Sleep', 'moon', 'guts', [['Lights out on time', 'daily', 'light'], ['Drink 2 liters of water', 'daily', 'light']]],
+  ['music', 'Music', 'music', 'charm', [['Practice for 30 minutes', 'daily', 'normal']]],
+  ['art', 'Art & Design', 'brush', 'charm', [['Sketch something', 'daily', 'light'], ['Finish a piece', 'weekly', 'heavy']]],
+  ['writing', 'Writing', 'pen', 'charm', [['Write 300 words', 'daily', 'normal']]],
+  ['style', 'Style', 'mask', 'charm', [['Plan outfits for the week', 'weekly', 'light']]],
+  ['social', 'Social Life', 'chat', 'charm', [['Meet up with a friend', 'weekly', 'normal']]],
+  ['helping', 'Helping Others', 'heart', 'kindness', [['Help someone out', 'weekly', 'normal']]],
+  ['family', 'Family', 'users', 'kindness', [['Call family', 'weekly', 'normal']]],
+  ['mind', 'Mindfulness', 'leaf', 'kindness', [['Meditate for 10 minutes', 'daily', 'light'], ['Journal before bed', 'daily', 'light']]],
+].map(([id, name, icon, stat, quests]) => ({ id, name, icon, stat, quests }));
+const areaById = id => LIFE_AREAS.find(a => a.id === id);
+const NG_STEPS = ['Who are you', 'What you train', 'First quests', 'Ready'];
+const NG_QUEST_PICKS = 5; // suggested quests checked by default — start small
+
+let ng = null; // the character being created; null outside character creation
+
+function openNewGame(fromSystem = false) {
+  ng = {
+    step: 0, reached: 1, fromSystem, error: '',
+    name: '', picked: [], names: {}, custom: [], qOn: {}, qTitle: {},
+    dailiesAt: state.settings.dailiesAt || '21:00', bedAt: state.settings.bedAt || '23:30',
+  };
+  closeModal(); closeRankUp();
+  document.body.classList.add('ng-open');
+  renderNewGame(true);
+}
+function closeNewGame() {
+  ng = null;
+  $('#newgame-root').innerHTML = '';
+  document.body.classList.remove('ng-open');
+}
+
+// Skills as they'll be created: picked life areas (renamable) plus the player's own, in pick order.
+function ngSkills() {
+  return ng.picked.map(key => {
+    const base = areaById(key) || ng.custom.find(c => c.key === key);
+    const name = String(ng.names[key] ?? base.name).trim() || base.name;
+    return { key, name, icon: base.icon, stat: base.stat };
+  });
+}
+// Suggested quests for the picked areas. Newly seen ones start checked if they're their area's
+// first suggestion, until NG_QUEST_PICKS are checked.
+function ngQuests() {
+  const list = ng.picked.flatMap(key => (areaById(key)?.quests || []).map(([title, type, effort], i) =>
+    ({ key: `${key}-${i}`, skill: key, title: ng.qTitle[`${key}-${i}`] ?? title, type, effort, first: i === 0 })));
+  let on = list.filter(q => ng.qOn[q.key]).length;
+  for (const q of list) if (!(q.key in ng.qOn)) ng.qOn[q.key] = q.first && on++ < NG_QUEST_PICKS;
+  return list;
+}
+const ngChosenQuests = () => ngQuests().filter(q => ng.qOn[q.key] && q.title.trim());
+
+const ngHead = (title, lead, seed) =>
+  `<h1 id="ng-h" tabindex="-1" aria-label="${esc(title)}">${ransom(title, seed)}</h1><p class="ng-lead">${lead}</p>`;
+
+function ngTitleScreen() {
+  return `<div class="ng ng-title" role="dialog" aria-modal="true" aria-label="Phantom Life">
+    <div class="ng-drag"></div>
+    <div class="ng-title-in">
+      <h1 class="ng-logo" tabindex="-1" aria-label="Phantom Life">${ransom('PHANTOM', 7)}<br>${ransom('LIFE', 12)}</h1>
+      <p class="ng-tagline">Your life is the game. Take your time.</p>
+      <nav class="ng-menu" aria-label="Start">
+        <button class="ng-mi" data-act="ng-new" data-autofocus>New game</button>
+        <button class="ng-mi" data-act="ng-load">Load a save file</button>
+        ${ng.fromSystem ? '<button class="ng-mi" data-act="ng-cancel">Back to my game</button>' : ''}
+      </nav>
+    </div>
+  </div>`;
+}
+
+function ngStepWho() {
+  return `${ngHead('WHO ARE YOU?', 'Pick a codename — it’s what the game calls you. You can change it later in System.', 17)}
+    <label class="fld ng-name-in"><span>Codename</span>
+      <input id="ng-name" maxlength="30" autocomplete="off" spellcheck="false" placeholder="Joker" value="${esc(ng.name)}" data-autofocus></label>
+    <div class="ng-name-preview" id="ng-name-preview" aria-hidden="true">${ransom(ng.name.trim() || 'Joker', 13)}</div>`;
+}
+
+function ngStepTrain() {
+  const tiles = LIFE_AREAS.map(a => `<label class="ng-tile">
+      <input type="checkbox" id="area-${a.id}" name="area" value="${a.id}" ${ng.picked.includes(a.id) ? 'checked' : ''}>
+      <span>${iconSvg(a.icon)}<b>${esc(a.name)}</b><small>${STATS[a.stat].name}</small></span></label>`).join('');
+  const mine = ngSkills();
+  return `${ngHead('WHAT WILL YOU TRAIN?', 'Pick the parts of your life you want to grow. Each one becomes a skill that levels up as you log time on it — 3 to 6 is a good start.', 23)}
+    <fieldset class="ng-fs"><legend class="sr-only">Life areas</legend><div class="ng-tiles">${tiles}</div></fieldset>
+    <fieldset class="ng-fs">
+      <legend>Your skills${mine.length ? ` · ${mine.length}` : ''}</legend>
+      ${mine.length ? `<ul class="ng-skills">${mine.map(s => `<li>
+          <span class="ng-sk-ico">${skillBadge(s)}</span>
+          <input id="nm-${s.key}" data-ng-name="${s.key}" maxlength="40" value="${esc(s.name)}" aria-label="Name of skill ${esc(s.name)}">
+          <small>feeds ${STATS[s.stat].name}</small>
+          <button type="button" class="ic" data-act="ng-drop" data-key="${s.key}" aria-label="Remove ${esc(s.name)}">✕</button>
+        </li>`).join('')}</ul>` : '<p class="ng-hint">Nothing picked yet — choose above, or add your own.</p>'}
+      <div class="ng-own">
+        <input id="ng-own-name" maxlength="40" placeholder="Something else? Guitar, Chess, Rust…" aria-label="Your own skill">
+        <select id="ng-own-stat" aria-label="Social stat it feeds">${STAT_ORDER.map(k => `<option value="${k}">${STATS[k].name}</option>`).join('')}</select>
+        <button type="button" class="btn small" data-act="ng-add-own">Add</button>
+      </div>
+    </fieldset>`;
+}
+
+function ngStepQuests() {
+  const qs = ngQuests();
+  const groups = ngSkills().map(s => {
+    const mine = qs.filter(q => q.skill === s.key);
+    if (!mine.length) return '';
+    return `<fieldset class="ng-fs ng-qgroup"><legend>${skillBadge(s)}${esc(s.name)}</legend>${mine.map(q => `
+      <div class="ng-q ${ng.qOn[q.key] ? 'on' : ''}">
+        <label class="ng-check"><input type="checkbox" id="q-${q.key}" name="q" value="${q.key}" ${ng.qOn[q.key] ? 'checked' : ''}><span></span><span class="sr-only">Take quest: ${esc(q.title)}</span></label>
+        <input class="ng-qt" id="qt-${q.key}" data-ng-qt="${q.key}" maxlength="80" value="${esc(q.title)}" aria-label="Quest title">
+        <small class="ng-qtype">${q.type === 'daily' ? 'Daily' : 'Weekly'}</small>
+      </div>`).join('')}</fieldset>`;
+  }).join('');
+  const ownOnly = ng.picked.some(k => !areaById(k));
+  return `${ngHead('FIRST QUESTS', 'Habits that pay XP each time you tick them off. Start small — you can add more on the Quests screen any time.', 29)}
+    ${groups || '<p class="ng-hint">No suggestions for your own skills — add quests for them on the Quests screen.</p>'}
+    ${groups && ownOnly ? '<p class="ng-hint">Your own skills get their quests on the Quests screen.</p>' : ''}`;
+}
+
+function ngStepReady() {
+  const sk = ngSkills().length, qs = ngChosenQuests().length;
+  return `${ngHead('READY?', 'Morgana nudges you when dailies are still open and when it’s time for bed. Change these any time in System.', 31)}
+    <div class="ng-ready">
+      <label class="fld"><span>Dailies reminder</span><input type="time" id="ng-dailies" value="${esc(ng.dailiesAt)}"></label>
+      <label class="fld"><span>Bedtime</span><input type="time" id="ng-bed" value="${esc(ng.bedAt)}"></label>
+    </div>
+    <p class="ng-sum">You start with <b>${sk} skill${sk === 1 ? '' : 's'}</b> and <b>${qs} quest${qs === 1 ? '' : 's'}</b>.</p>
+    <p class="ng-first">First move: log something you did today.</p>`;
+}
+
+// The live character card in the side panel.
+function ngCard() {
+  const sk = ngSkills();
+  const shown = sk.slice(0, 7);
+  const qs = ng.step >= 3 ? ngChosenQuests().length : null;
+  return `<div class="tag">PLAYER</div>
+    <div class="ng-card-name" id="ng-card-name">${ransom(ng.name.trim() || 'Joker', 13)}</div>
+    <div class="ng-card-lv">LV 1 · ${esc(TITLES[0][1])}</div>
+    <ul class="ng-card-sk">${shown.length ? shown.map(s => `<li>${skillBadge(s)}<span>${esc(s.name)}</span></li>`).join('')
+      : '<li class="ng-card-empty">No skills yet</li>'}${sk.length > shown.length ? `<li class="ng-card-more">+${sk.length - shown.length} more</li>` : ''}</ul>
+    <div class="ng-card-stats">${STAT_ORDER.map(k => {
+      const n = sk.filter(s => s.stat === k).length;
+      return `<span class="${n ? 'on' : ''}">${STATS[k].name}${n ? ` ×${n}` : ''}</span>`;
+    }).join('')}</div>
+    ${qs === null ? '' : `<div class="ng-card-q">${qs} quest${qs === 1 ? '' : 's'}</div>`}`;
+}
+
+function ngWizard() {
+  const steps = NG_STEPS.map((label, i) => {
+    const n = i + 1, cur = n === ng.step;
+    return `<li ${cur ? 'aria-current="step"' : ''}><button type="button" class="ng-step ${cur ? 'on' : ''}" data-act="ng-goto" data-step="${n}"
+      ${n > ng.reached ? 'disabled' : ''} style="--i:${i}"><b>${n}</b><span>${label}</span></button></li>`;
+  }).join('');
+  const body = [null, ngStepWho, ngStepTrain, ngStepQuests, ngStepReady][ng.step]();
+  return `<div class="ng ng-wizard" role="dialog" aria-modal="true" aria-labelledby="ng-h">
+    <div class="ng-drag"></div>
+    <aside class="ng-side">
+      <div class="side-bg"></div>
+      <ol class="ng-steps" aria-label="Character creation">${steps}</ol>
+      <div class="ng-card" id="ng-card">${ngCard()}</div>
+    </aside>
+    <form class="ng-main" id="ng-form" novalidate>
+      <div class="ng-body">${body}</div>
+      ${ng.error ? `<p class="ng-error" role="alert">${esc(ng.error)}</p>` : ''}
+      <div class="ng-nav">
+        <button type="button" class="btn ghost" data-act="ng-back">Back</button>
+        <button type="submit" class="btn primary">${ng.step === 4 ? 'Start' : 'Next'} <kbd>Enter</kbd></button>
+      </div>
+    </form>
+  </div>`;
+}
+
+// moved: a new step is showing — focus its first field or heading. Otherwise keep focus where it was.
+function renderNewGame(moved = false) {
+  const root = $('#newgame-root');
+  const keepId = !moved && root.contains(document.activeElement) ? document.activeElement.id : '';
+  root.innerHTML = ng.step === 0 ? ngTitleScreen() : ngWizard();
+  const target = (keepId && document.getElementById(keepId)) || root.querySelector('[data-autofocus]') || root.querySelector('h1');
+  target?.focus();
+}
+
+// Copies what's typed into `ng` (no re-render, so typing keeps focus) and refreshes the card.
+function ngSync() {
+  const val = id => document.getElementById(id)?.value;
+  if (val('ng-name') !== undefined) ng.name = val('ng-name');
+  document.querySelectorAll('[data-ng-name]').forEach(i => { ng.names[i.dataset.ngName] = i.value; });
+  document.querySelectorAll('[data-ng-qt]').forEach(i => { ng.qTitle[i.dataset.ngQt] = i.value; });
+  if (val('ng-dailies')) ng.dailiesAt = val('ng-dailies');
+  if (val('ng-bed')) ng.bedAt = val('ng-bed');
+  const card = $('#ng-card');
+  if (card) card.innerHTML = ngCard();
+  const preview = $('#ng-name-preview');
+  if (preview) preview.innerHTML = ransom(ng.name.trim() || 'Joker', 13);
+}
+
+function ngNext() {
+  ngSync();
+  ng.error = '';
+  if (ng.step === 2 && !ng.picked.length) { ng.error = 'Pick at least one thing to train.'; renderNewGame(); return; }
+  if (ng.step === 4) { finishNewGame(); return; }
+  ng.step++;
+  ng.reached = Math.max(ng.reached, ng.step);
+  sfx.nav();
+  renderNewGame(true);
+}
+
+function ngAddOwn() {
+  ngSync();
+  const input = $('#ng-own-name'), name = input.value.trim();
+  if (!name) { input.focus(); return; }
+  const key = 'own' + uid();
+  ng.custom.push({ key, name, stat: $('#ng-own-stat').value, icon: guessIcon({ name }) });
+  ng.picked.push(key);
+  ng.error = '';
+  sfx.ok();
+  renderNewGame();
+  $('#ng-own-name')?.focus();
+}
+
+function finishNewGame() {
+  const fresh = defaultState();
+  if (ng.fromSystem) fresh.settings = { ...state.settings }; // keep hotkey / login / sound choices
+  fresh.settings.dailiesAt = ng.dailiesAt;
+  fresh.settings.bedAt = ng.bedAt;
+  fresh.player = { name: ng.name.trim() || 'Joker', createdAt: new Date().toISOString() };
+  const ids = {};
+  fresh.skills = ngSkills().map(s => { const sk = newSkill(s.name, s.icon, s.stat); ids[s.key] = sk.id; return sk; });
+  fresh.quests = ngChosenQuests().map(q => newQuest(q.title.trim(), q.type, 'skill:' + ids[q.skill], q.effort));
+  state = fresh;
+  persist();
+  closeNewGame();
+  screen = '';
+  go('status');
+  sfx.rank();
+  toast(`WELCOME, ${state.player.name.toUpperCase()}`, 'Your story starts now');
+  setTimeout(() => { if (!ng) openQuickLog(); }, 600);
+}
+
+// Asks for a save file and checks it looks like one. Returns the data, or null.
+async function pickSaveFile() {
+  let data;
+  try { data = await window.api.importSave(); } catch { toast('ERROR', 'That file is not valid JSON'); return null; }
+  if (!data) return null;
+  if (!Array.isArray(data.log) || !Array.isArray(data.skills)) { toast('ERROR', 'Not a Phantom Life save'); return null; }
+  return data;
+}
+
+async function ngLoad() {
+  const data = await pickSaveFile();
+  if (!data || !ng) return;
+  if (ng.fromSystem && !await askConfirm('LOAD SAVE?', `This replaces your current progress with the imported save (${data.log.length} actions).`, 'Load')) return;
+  state = normalize(data);
+  persist();
+  closeNewGame();
+  screen = '';
+  go('status');
+  toast('LOADED', `Welcome back, ${state.player.name}`);
+}
+
 /* ---------- render ---------- */
 function renderSide() {
   const now = new Date();
@@ -1853,18 +2133,24 @@ const ACTIONS = {
   'more-journal': () => { journalLimit += 60; render(); },
   export: async () => { if (await window.api.exportSave(state)) toast('SAVED', 'Export written'); },
   import: async () => {
-    let data;
-    try { data = await window.api.importSave(); } catch { toast('ERROR', 'That file is not valid JSON'); return; }
+    const data = await pickSaveFile();
     if (!data) return;
-    if (!Array.isArray(data.log) || !Array.isArray(data.skills)) { toast('ERROR', 'Not a Phantom Life save'); return; }
     if (!await askConfirm('LOAD SAVE?', `This replaces your current progress with the imported save (${data.log.length} actions).`, 'Load')) return;
     state = normalize(data); persist(); render(); toast('LOADED', 'Welcome back');
   },
   reveal: () => window.api.revealSave(),
   reset: async () => {
-    if (!await askConfirm('NEW GAME?', 'All skills, quests, confidants and history will be erased.', 'Erase everything')) return;
-    state = defaultState(); persist(); go('status'); toast('NEW GAME', 'A new journey begins');
+    if (!await askConfirm('NEW GAME?', 'You’ll create a new character. Your current progress is replaced when you press Start — until then you can go back. Export it first if you might want it later.', 'Continue')) return;
+    openNewGame(true);
   },
+  // character creation
+  'ng-new': () => { ng.step = 1; sfx.nav(); renderNewGame(true); },
+  'ng-load': () => ngLoad(),
+  'ng-cancel': () => { closeNewGame(); sfx.back(); render(); },
+  'ng-back': () => { ngSync(); ng.error = ''; ng.step--; sfx.back(); renderNewGame(true); },
+  'ng-goto': ds => { ngSync(); ng.error = ''; ng.step = Number(ds.step); sfx.nav(); renderNewGame(true); },
+  'ng-drop': ds => { ngSync(); ng.picked = ng.picked.filter(k => k !== ds.key); sfx.back(); renderNewGame(); },
+  'ng-add-own': () => ngAddOwn(),
 };
 
 document.addEventListener('click', e => {
@@ -1874,7 +2160,26 @@ document.addEventListener('click', e => {
   if (fn) fn(el.dataset, el, e);
 });
 
+// Character creation: typing updates the live card; ticking areas/quests re-renders the step.
+document.addEventListener('input', e => { if (ng && e.target.closest('#newgame-root')) ngSync(); });
+document.addEventListener('submit', e => { if (e.target.id === 'ng-form') { e.preventDefault(); ngNext(); } });
+
 document.addEventListener('change', e => {
+  if (ng && e.target.name === 'area') {
+    ngSync();
+    const id = e.target.value;
+    ng.picked = e.target.checked ? [...ng.picked, id] : ng.picked.filter(k => k !== id);
+    ng.error = '';
+    (e.target.checked ? sfx.ok : sfx.back)();
+    renderNewGame();
+    return;
+  }
+  if (ng && e.target.name === 'q') {
+    ng.qOn[e.target.value] = e.target.checked;
+    e.target.closest('.ng-q').classList.toggle('on', e.target.checked);
+    ngSync();
+    return;
+  }
   if (e.target.id === 'sys-name') {
     state.player.name = e.target.value.trim() || 'Joker';
     persist(); render(); toast('CODENAME SET', state.player.name);
@@ -1889,6 +2194,11 @@ document.addEventListener('change', e => {
 });
 
 document.addEventListener('keydown', e => {
+  if (ng && !$('#modal-root').firstChild) {
+    // Enter in "your own skill" adds it instead of moving on; app shortcuts are off meanwhile.
+    if (e.key === 'Enter' && e.target.id === 'ng-own-name') { e.preventDefault(); ngAddOwn(); }
+    return;
+  }
   if ($('#rankup-root').firstChild) {
     if (['Escape', 'Enter', ' '].includes(e.key)) { e.preventDefault(); closeRankUp(); }
     return;
@@ -1916,8 +2226,24 @@ document.addEventListener('mousemove', e => {
   tip.style.top = Math.min(e.clientY + 16, innerHeight - tip.offsetHeight - 8) + 'px';
 });
 
-/* ---------- dev helpers (used by PL_SHOT screenshots) ---------- */
+/* ---------- dev helpers (PL_SHOT screenshots, tests) ---------- */
+// First launch shows character creation; this swaps it for the sample character.
+window.__skipOnboarding = () => {
+  if (!ng) return;
+  closeNewGame();
+  state = sampleState();
+  persist();
+  render();
+};
+// Character creation at a given step (0 = title screen) with a few picks, for screenshots.
+window.__ngShot = step => {
+  if (!ng) openNewGame();
+  Object.assign(ng, { step, reached: 4, name: 'Joker', picked: ['coding', 'fitness', 'reading', 'music'] });
+  renderNewGame(true);
+};
 window.__seedDemo = () => {
+  if (ng) closeNewGame();
+  if (!state.skills.length) state = sampleState();
   const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
   state.confidants.push(
     { id: uid(), name: 'Ryuji', arcana: 'Chariot', stat: 'guts', notes: 'Gym buddy. Loves ramen.', createdAt: new Date().toISOString() },
@@ -1952,13 +2278,13 @@ window.__demoRankUp = () => queueRankUp({ kicker: 'Knowledge', big: 'RANK UP!', 
 (async function boot() {
   const raw = await window.api.load();
   state = normalize(raw);
-  if (!raw) persist();
   checkCompendium(true);
   render();
   $('#screen').classList.add('enter');
+  if (!raw) openNewGame(); // first launch: create a character (saved only on Start)
   setInterval(renderSide, 60 * 1000);
-  window.api.onQuickLog(() => { closeRankUp(); closeModal(); openQuickLog(); });
-  window.api.onGo(id => { closeModal(); go(id || 'status'); });
+  window.api.onQuickLog(() => { if (ng) return; closeRankUp(); closeModal(); openQuickLog(); });
+  window.api.onGo(id => { if (ng) return; closeModal(); go(id || 'status'); });
   window.api.onMorgana(m => morganaSays(m));
   window.api.setHotkey(state.settings.hotkey !== false);
 })();
