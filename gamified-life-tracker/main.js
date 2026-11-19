@@ -180,6 +180,15 @@ function createWindow() {
     win.webContents.once('did-finish-load', async () => {
       const wait = ms => new Promise(r => setTimeout(r, ms));
       await wait(800);
+      // Fresh save: character creation shows first — capture its title screen and four steps.
+      if (!process.env.PL_SEED) {
+        for (const step of [0, 1, 2, 3, 4]) {
+          await win.webContents.executeJavaScript(`window.__ngShot(${step})`);
+          await wait(step === 0 ? 900 : 500);
+          fs.writeFileSync(path.join(process.env.PL_SHOT, `newgame-${step}.png`), (await win.webContents.capturePage()).toPNG());
+        }
+        await win.webContents.executeJavaScript('window.__skipOnboarding()');
+      }
       if (process.env.PL_SEED) await win.webContents.executeJavaScript('window.__seedDemo && window.__seedDemo()');
       for (const id of ['status', 'skills', 'quests', 'confidants', 'journal', 'compendium', 'velvet', 'shop', 'system']) {
         await win.webContents.executeJavaScript(`go(${JSON.stringify(id)})`);

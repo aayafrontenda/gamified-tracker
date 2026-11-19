@@ -21,6 +21,23 @@ test.afterAll(async () => {
   fs.rmSync(userData, { recursive: true, force: true });
 });
 
+test('character creation has no accessibility violations', async () => {
+  const dir = tempUserData();
+  const fresh = await launch(dir, { fresh: true });
+  try {
+    for (const step of [0, 1, 2, 3, 4]) {
+      await fresh.page.evaluate(s => window.__ngShot(s), step);
+      await fresh.page.waitForTimeout(step === 0 ? 900 : 300); // title screen entrance animation
+      const { violations } = await new AxeBuilder({ page: fresh.page }).setLegacyMode(true).analyze();
+      const report = violations.map(v => `step ${step} — ${v.id} (${v.impact}): ${v.help}\n  ${v.nodes.map(n => n.target.join(' ')).join('\n  ')}`);
+      expect(report, report.join('\n')).toEqual([]);
+    }
+  } finally {
+    await fresh.app.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 for (const id of SCREENS) {
   test(`${id} screen has no accessibility violations`, async () => {
     await page.evaluate(([screen, tab]) => { journalTab = tab || 'log'; go(screen); render(); }, id.split(':'));
