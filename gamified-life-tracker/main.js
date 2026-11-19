@@ -6,6 +6,9 @@ const IS_MAC = process.platform === 'darwin';
 const IS_WIN = process.platform === 'win32';
 const ICON = path.join(__dirname, 'src', 'assets', 'icon.ico'); // Windows/Linux window + tray icon
 const APP_ID = 'local.phantomlife';
+// Fixed so the Start Menu shortcut and the running app agree (Electron picks a random one per run
+// otherwise). Lets toasts that moved to the Action Center still activate the app.
+const TOAST_CLSID = '{482CAAF0-BF9F-4558-8EFB-FE741FC19CD3}';
 
 app.setName('Phantom Life');
 // Dev/testing hook: point the save at a throwaway folder.
@@ -31,10 +34,11 @@ const openedAtLogin = () => IS_MAC ? app.getLoginItemSettings().wasOpenedAtLogin
 function ensureWinShortcut() {
   if (!IS_WIN || !BACKGROUND) return;
   app.setAppUserModelId(APP_ID);
+  app.setToastActivatorCLSID(TOAST_CLSID);
   try {
     const lnk = path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Phantom Life.lnk');
     shell.writeShortcutLink(lnk, fs.existsSync(lnk) ? 'replace' : 'create', {
-      target: process.execPath, appUserModelId: APP_ID, icon: process.execPath, iconIndex: 0,
+      target: process.execPath, appUserModelId: APP_ID, toastActivatorClsid: TOAST_CLSID, icon: process.execPath, iconIndex: 0,
       description: 'Phantom Life — take your time.',
     });
   } catch (e) {
