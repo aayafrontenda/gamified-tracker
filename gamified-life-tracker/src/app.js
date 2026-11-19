@@ -238,6 +238,7 @@ function defaultState() {
     quests: [],
     confidants: [],
     log: [],
+    timer: null, // the running focus timer, see the focus timer section
   };
 }
 
@@ -279,11 +280,13 @@ function normalize(s) {
     conditions: obj(s.conditions), requests: obj(s.requests), compendium: obj(s.compendium),
     reviews: s.reviews && typeof s.reviews === 'object' && !Array.isArray(s.reviews) ? s.reviews : {},
     log: Array.isArray(s.log) ? s.log : [],
+    timer: s.timer && Array.isArray(s.timer.tg) && s.timer.startedAt ? s.timer : null,
   };
 }
 
 let saveTimer = null;
 function persist() {
+  window.api.timerChanged(state.timer); // tray readout + away detection live in the main process
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => { saveTimer = null; window.api.save(state); }, 200);
 }
@@ -411,12 +414,13 @@ function announce(b, a) {
   if (a.player > b.player) queueRankUp({ kicker: state.player.name, big: 'LEVEL UP!', sub: `Lv ${a.player} — ${titleFor(a.player)}`, player: true });
 }
 
-function logActivity(targets, intId, note = '') {
+// extra: more entry fields, e.g. { minutes } from the timer.
+function logActivity(targets, intId, note = '', extra = {}) {
   const I = intensity(intId);
   const tg = [...new Set(targets)];
   const g = buildGains(tg, I.xp);
   if (!g.xp) return;
-  commit({ kind: 'activity', tg, skills: g.skills, stats: g.stats, xp: g.xp, intensity: I.id, note, ...(g.bonus && { bonus: true }), ...(g.req && { req: dkey() }) });
+  commit({ kind: 'activity', tg, skills: g.skills, stats: g.stats, xp: g.xp, intensity: I.id, note, ...extra, ...(g.bonus && { bonus: true }), ...(g.req && { req: dkey() }) });
 }
 
 function questCompletion(q) {
@@ -473,6 +477,99 @@ function toggleQuest(id) {
   const I = intensity(q.intensity);
   const g = buildGains([q.target], I.xp);
   commit({ kind: 'quest', questId: q.id, tg: [q.target], skills: g.skills, stats: g.stats, xp: g.xp || I.xp, intensity: I.id, note: q.title, ...(g.bonus && { bonus: true }), ...(g.req && { req: dkey() }) });
+}
+
+/* ---------- focus timer ----------
+   One timer at a time, kept in the save (state.timer) so it survives closing the window or the app.
+   Stop opens Take Action with its skills, the minutes, and an effort picked from them. The main
+   process mirrors it on the tray icon and reports when the computer sat idle while it ran. */
+const timerMs = (t = state.timer, now = Date.now()) =>
+  t ? Math.max(0, (t.pausedAt ? Date.parse(t.pausedAt) : now) - Date.parse(t.startedAt) - (t.pausedMs || 0)) : 0;
+const fmtClock = ms => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 3600)}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`; };
+const fmtMin = m => m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`;
+// Matches the effort hints: Light ~15 min, Normal ~45 min, Heavy ~2 h. Epic stays a choice.
+const effortFor = min => min < 25 ? 'light' : min < 90 ? 'normal' : 'heavy';
+const targetsLabel = tg => tg.map(t => targetInfo(t).label).join(' + ');
+
+function timerChanged() {
+  persist();
+  render();
+}
+function startTimer(targets) {
+  const tg = [...new Set(targets)].filter(t => targetInfo(t).stat);
+  if (!tg.length) return;
+  if (state.timer) { toast('TIMER RUNNING', `Stop ${state.timer.label} first`); return; }
+  state.timer = { tg, label: targetsLabel(tg), startedAt: new Date().toISOString(), pausedAt: null, pausedMs: 0 };
+  timerChanged();
+  sfx.ok();
+  toast('TIMER STARTED', state.timer.label);
+}
+function pauseTimer() {
+  const t = state.timer;
+  if (!t || t.pausedAt) return;
+  t.pausedAt = new Date().toISOString();
+  timerChanged();
+}
+function resumeTimer() {
+  const t = state.timer;
+  if (!t || !t.pausedAt) return;
+  t.pausedMs = (t.pausedMs || 0) + Date.now() - Date.parse(t.pausedAt);
+  t.pausedAt = null;
+  timerChanged();
+  sfx.ok();
+}
+function clearTimer() { state.timer = null; timerChanged(); }
+// Stop freezes the clock and asks to log it; cancelling leaves the timer paused.
+function stopTimer() {
+  if (!state.timer) return;
+  pauseTimer();
+  closeRankUp();
+  openQuickLog(null, { timer: true });
+}
+// From the main process: the computer sat idle (or asleep) from `from` to `to` while the timer ran.
+function timerAway({ from, to }) {
+  const t = state.timer;
+  if (!t || t.pausedAt) return;
+  const ms = to - Math.max(from, Date.parse(t.startedAt));
+  if (ms < 60 * 1000) return;
+  const min = Math.round(ms / 60000);
+  openModal(`
+    <h2 class="m-title">${ransom('WELCOME BACK', 9)}</h2>
+    <p class="m-text">You were away for <b>${fmtMin(min)}</b> while the ${esc(t.label)} timer kept running.</p>
+    <div class="m-actions">
+      <button class="btn ghost" data-act="close-modal">Keep the time</button>
+      <button class="btn primary" id="away-drop">Remove ${fmtMin(min)}</button>
+    </div>`, root => {
+    root.querySelector('#away-drop').onclick = () => {
+      closeModal();
+      if (state.timer !== t) return;
+      t.pausedMs = (t.pausedMs || 0) + ms;
+      timerChanged();
+      toast('TIME REMOVED', fmtMin(min));
+    };
+  });
+}
+// Icon buttons: the sidebar is too narrow for the clock plus worded buttons.
+const tmIcon = d => `<svg viewBox="0 0 12 12" aria-hidden="true">${d}</svg>`;
+const TM_ICON = {
+  pause: tmIcon('<rect x="2" y="1.5" width="3" height="9"/><rect x="7" y="1.5" width="3" height="9"/>'),
+  play: tmIcon('<path d="M3 1.5v9l7.5-4.5z"/>'),
+  stop: tmIcon('<rect x="2" y="2" width="8" height="8"/>'),
+};
+// The sidebar readout; only the clock text changes every second.
+function timerPanel() {
+  const t = state.timer;
+  if (!t) return '';
+  return `<div class="timer-chip ${t.pausedAt ? 'paused' : ''}" role="group" aria-label="Focus timer">
+    <div class="tm-top"><span class="tm-dot" aria-hidden="true"></span><b>${esc(t.label)}</b>${t.pausedAt ? '<em>paused</em>' : ''}</div>
+    <div class="tm-row">
+      <time id="timer-clock">${fmtClock(timerMs(t))}</time>
+      ${t.pausedAt
+        ? `<button class="tm-btn" data-act="timer-resume" title="Resume" aria-label="Resume the timer">${TM_ICON.play}</button>`
+        : `<button class="tm-btn" data-act="timer-pause" title="Pause" aria-label="Pause the timer">${TM_ICON.pause}</button>`}
+      <button class="tm-btn stop" data-act="timer-stop" title="Stop and log it" aria-label="Stop the timer and log it">${TM_ICON.stop}</button>
+    </div>
+  </div>`;
 }
 
 /* ---------- sound ---------- */
@@ -537,8 +634,11 @@ function closeRankUp() {
 
 /* ---------- modal ---------- */
 function openModal(html, onMount) {
-  $('#modal-root').innerHTML = `<div class="modal-back" data-act="modal-back"><div class="modal" role="dialog">${html}</div></div>`;
+  $('#modal-root').innerHTML = `<div class="modal-back" data-act="modal-back"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
   const root = $('#modal-root .modal');
+  // Name the dialog after its ransom-letter title (the letters alone read without spaces).
+  const title = root.querySelector('.m-title');
+  if (title) root.setAttribute('aria-label', [...title.querySelectorAll('.rn, .rn-sp')].map(n => n.classList.contains('rn-sp') ? ' ' : n.textContent).join('') || title.textContent);
   onMount && onMount(root);
   const first = root.querySelector('input:not([type=radio]):not([type=checkbox]), textarea, select');
   first && setTimeout(() => first.focus(), 30);
@@ -599,31 +699,59 @@ function bindGainPreview(root, fixed = () => []) {
   update();
 }
 
-function openQuickLog(preTarget) {
+// opts.timer: log the stopped timer — its skills, its minutes, an effort picked from them.
+function openQuickLog(preTarget, opts = {}) {
+  const t = opts.timer && state.timer;
   const last = [...state.log].reverse().find(e => e.kind === 'activity');
-  const cur = preTarget ? [preTarget] : last ? entryTargets(last) : state.skills[0] ? ['skill:' + state.skills[0].id] : ['stat:knowledge'];
+  const cur = t ? t.tg : preTarget ? [preTarget] : last ? entryTargets(last) : state.skills[0] ? ['skill:' + state.skills[0].id] : ['stat:knowledge'];
+  const minutes = t ? Math.max(1, Math.round(timerMs(t) / 60000)) : 0;
   openModal(`
-    <h2 class="m-title">${ransom('TAKE ACTION', 11)}</h2>
-    <p class="m-sub">How did you spend your time? Pick everything it trained.</p>
+    <h2 class="m-title">${ransom(t ? 'TIME’S UP' : 'TAKE ACTION', 11)}</h2>
+    <p class="m-sub">${t ? `Timer stopped at <b>${fmtClock(timerMs(t))}</b>. Check what it trained, then log it.`
+      : 'How did you spend your time? Pick everything it trained.'}</p>
     <form id="ql">
       <div class="fld"><span>Trains</span>${targetChips('target', cur)}</div>
-      <div class="fld"><span>Effort</span>${intSeg('int', 'normal')}</div>
+      ${t ? `<label class="fld ql-time"><span>Time <i>(minutes)</i></span><input type="number" name="minutes" min="1" max="1440" value="${minutes}" required></label>
+        ${minutes > 360 ? '<p class="ql-warn">That’s a long session — check the minutes if the timer kept running by mistake.</p>' : ''}` : ''}
+      <div class="fld"><span>Effort</span>${intSeg('int', t ? effortFor(minutes) : 'normal')}</div>
       <div class="gain-preview"></div>
       <label class="fld"><span>Note <i>(optional)</i></span><textarea name="note" rows="2" maxlength="280" placeholder="Deployed the k8s cluster, finally."></textarea></label>
       <div class="m-actions">
+        ${t ? '<button type="button" class="btn ghost ql-left" data-act="timer-discard">Discard timer</button>' : ''}
         <button type="button" class="btn ghost" data-act="close-modal">Cancel</button>
-        <button class="btn primary">Spend time <kbd>${KEY.submit}</kbd></button>
+        ${t ? '' : '<button type="button" class="btn" id="ql-timer">Start timer</button>'}
+        <button class="btn primary">${t ? 'Log it' : 'Spend time'} <kbd>${KEY.submit}</kbd></button>
       </div>
     </form>`, root => {
     const f = root.querySelector('form');
     bindGainPreview(root);
+    if (t) {
+      // Effort follows the minutes until it's picked by hand.
+      let picked = false;
+      f.addEventListener('change', e => { if (e.isTrusted && e.target.name === 'int') picked = true; });
+      f.minutes.addEventListener('input', () => {
+        if (picked || !(f.minutes.value > 0)) return;
+        f.querySelector(`input[name=int][value=${effortFor(Number(f.minutes.value))}]`).checked = true;
+        f.dispatchEvent(new Event('change'));
+      });
+    } else {
+      root.querySelector('#ql-timer').onclick = () => {
+        const tg = new FormData(f).getAll('target');
+        if (!tg.length) { toast('PICK ONE', 'Choose at least one skill or stat'); return; }
+        closeModal();
+        startTimer(tg);
+      };
+    }
     f.onsubmit = e => {
       e.preventDefault();
       const fd = new FormData(f);
       const tg = fd.getAll('target');
       if (!tg.length) { toast('PICK ONE', 'Choose at least one skill or stat'); return; }
       closeModal();
-      logActivity(tg, fd.get('int'), String(fd.get('note') || '').trim());
+      if (t) {
+        logActivity(tg, fd.get('int'), String(fd.get('note') || '').trim(), { minutes: Math.round(Number(fd.get('minutes'))) || minutes });
+        clearTimer();
+      } else logActivity(tg, fd.get('int'), String(fd.get('note') || '').trim());
     };
     f.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) f.requestSubmit(); });
   });
@@ -910,6 +1038,7 @@ function scrSkills() {
     const L = skillLevel(xp);
     const tXp = state.log.filter(e => e.date === today).reduce((a, e) => a + (entrySkills(e)[s.id] || 0), 0);
     const focus = isFocus(s.id);
+    const timing = state.timer && state.timer.tg.includes('skill:' + s.id);
     return `<div class="skill-card ${focus ? 'focus' : ''}">
       <div class="sk-top">
         <div class="sk-icon">${skillBadge(s)}</div>
@@ -930,7 +1059,9 @@ function scrSkills() {
       ${bar(L.pct)}
       <div class="sk-xp"><span>${L.into} / ${L.need} XP</span><span>${xp} total</span></div>
       <div class="sk-quick">${INTENSITY.map(i => `<button data-act="quick-skill" data-id="${s.id}" data-int="${i.id}" title="${i.label} · ${i.hint}">+${i.xp}</button>`).join('')}
-        <button class="note" data-act="log-skill" data-id="${s.id}" title="Log with a note">✎</button></div>
+        <button class="note" data-act="log-skill" data-id="${s.id}" title="Log with a note">✎</button>
+        ${timing ? `<button class="timer on" data-act="timer-stop" title="Stop the timer" aria-label="Stop the ${esc(s.name)} timer">■</button>`
+          : `<button class="timer" data-act="timer-skill" data-id="${s.id}" title="Start a timer" aria-label="Start a timer for ${esc(s.name)}">▶</button>`}</div>
     </div>`;
   }).join('');
   return `${head('skills')}
@@ -1022,7 +1153,7 @@ const jItem = e => `
   <div class="j-item">
     <span class="j-time">${fmtTime(e.ts)}</span>
     <span class="j-kind ${e.kind}">${KIND_TAG[e.kind] || 'ACTION'}</span>
-    <span class="j-label">${esc(entryLabel(e))}${e.note ? ` — <i>${esc(e.note)}</i>` : ''}</span>
+    <span class="j-label">${esc(entryLabel(e))}${e.minutes ? ` <span class="j-min">· ${fmtMin(e.minutes)}</span>` : ''}${e.note ? ` — <i>${esc(e.note)}</i>` : ''}</span>
     <span class="j-xp">+${e.xp}${statsText(e, true) ? ' · ' + statsText(e, true) : ''}</span>
     <button class="ic" data-act="del-entry" data-id="${e.id}" title="Delete (undo)">✕</button>
   </div>`;
@@ -2017,6 +2148,7 @@ function renderSide() {
     </nav>
     <div class="side-bottom">
       ${pendingReviewWeek() && screen !== 'velvet' ? '<button class="vr-badge" data-act="go" data-id="velvet"><span>🦋</span>The Velvet Room awaits</button>' : ''}
+      ${timerPanel()}
       <button class="act-btn" data-act="quick-log"><span>TAKE ACTION</span><kbd>L</kbd></button>
     </div>
     <div class="side-foot">
@@ -2070,6 +2202,14 @@ const ACTIONS = {
     persist(); sfx.back(); render();
   },
   'quick-skill': ds => logActivity(['skill:' + ds.id], ds.int),
+  'timer-skill': ds => startTimer(['skill:' + ds.id]),
+  'timer-pause': () => { pauseTimer(); sfx.back(); },
+  'timer-resume': () => resumeTimer(),
+  'timer-stop': () => stopTimer(),
+  'timer-discard': async () => {
+    if (!await askConfirm('DISCARD TIMER?', `${state.timer.label} · ${fmtClock(timerMs())} won’t be logged.`, 'Discard')) return;
+    clearTimer(); sfx.back(); toast('TIMER DISCARDED', '');
+  },
   'log-skill': ds => openQuickLog('skill:' + ds.id),
   'add-quest': ds => questModal(null, ds.type),
   'new-mission': () => { go('quests'); questModal(null, 'once'); },
@@ -2286,5 +2426,11 @@ window.__demoRankUp = () => queueRankUp({ kicker: 'Knowledge', big: 'RANK UP!', 
   window.api.onQuickLog(() => { if (ng) return; closeRankUp(); closeModal(); openQuickLog(); });
   window.api.onGo(id => { if (ng) return; closeModal(); go(id || 'status'); });
   window.api.onMorgana(m => morganaSays(m));
+  // focus timer: tick the sidebar clock, keep the main process (tray, away detection) in sync
+  setInterval(() => { const c = $('#timer-clock'); if (c && state.timer) c.textContent = fmtClock(timerMs()); }, 1000);
+  window.api.timerChanged(state.timer);
+  window.api.onTimerStop(() => { if (!ng) stopTimer(); });
+  window.api.onTimerAway(a => { if (!ng) timerAway(a); });
+  window.api.pendingAway().then(a => { if (a && !ng) timerAway(a); });
   window.api.setHotkey(state.settings.hotkey !== false);
 })();

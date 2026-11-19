@@ -25,6 +25,10 @@ Runs on **macOS** and **Windows**. Everything stays on your computer: no account
 - **Take action** (`L`): pick every skill (or social stat) the activity trained, plus an effort level —
   Light +10 · Normal +25 · Heavy +50 · Epic +100 XP. Each chosen skill gets the full XP; each social
   stat is credited once even if several chosen skills feed it; player XP counts once.
+- **Focus timer**: press ▶ on a skill (or Start timer in Take action) and get to work. The clock sits
+  in the sidebar and on the tray icon, survives closing the app, and can be paused. Stop logs it with
+  the minutes and a matching effort. Step away from the computer for 10+ minutes and it asks whether
+  to drop that time.
 - **Skills** level up from XP. Each skill feeds one **social stat** (XP ÷ 5 points).
 - **Social stats** — Knowledge, Guts, Proficiency, Kindness, Charm — have 5 ranks, at
   40 / 120 / 280 / 560 points.
