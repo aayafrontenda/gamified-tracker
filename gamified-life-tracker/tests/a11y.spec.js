@@ -21,6 +21,21 @@ test.afterAll(async () => {
   fs.rmSync(userData, { recursive: true, force: true });
 });
 
+test('running timer and its log dialog have no accessibility violations', async () => {
+  await page.evaluate(() => { startTimer(['skill:' + state.skills[0].id]); go('status'); });
+  await page.waitForTimeout(400);
+  const scan = async label => {
+    const { violations } = await new AxeBuilder({ page }).setLegacyMode(true).analyze();
+    const report = violations.map(v => `${label} — ${v.id} (${v.impact}): ${v.help}\n  ${v.nodes.map(n => n.target.join(' ')).join('\n  ')}`);
+    expect(report, report.join('\n')).toEqual([]);
+  };
+  await scan('timer running');
+  await page.evaluate(() => stopTimer());
+  await page.waitForTimeout(500); // dialog entrance animation
+  await scan('timer stopped');
+  await page.evaluate(() => { closeModal(); clearTimer(); });
+});
+
 test('character creation has no accessibility violations', async () => {
   const dir = tempUserData();
   const fresh = await launch(dir, { fresh: true });
