@@ -25,19 +25,45 @@ let mainWin = null;
 // doesn't double them. (macOS already keeps the installed app to a single copy; Electron's
 // own single-instance lock rejects ad-hoc signed builds, so it's only used on Windows/Linux.)
 const BACKGROUND = !TEST && app.isPackaged;
-const PRIMARY = IS_MAC || !BACKGROUND || app.requestSingleInstanceLock();
-if (!PRIMARY) app.quit();
-else app.on('second-instance', () => showWindow());
 
-// Start-at-login: macOS reports it itself; Windows/Linux get a flag in the login command.
-const LOGIN_OPTS = IS_MAC ? {} : { args: ['--hidden'] };
+// Windows installer = Squirrel: the app lives in <install>\app-<version>\ next to Update.exe, which
+// starts it once with a --squirrel-* flag on install / update / uninstall (handled below, then quit).
+const SQUIRREL_UPDATE = IS_WIN ? path.resolve(path.dirname(process.execPath), '..', 'Update.exe') : '';
+const SQUIRREL = IS_WIN && app.isPackaged && fs.existsSync(SQUIRREL_UPDATE);
+const EXE_NAME = path.basename(process.execPath);
+
+// Start-at-login: macOS reports it itself; Windows/Linux get a flag in the login command. Under
+// Squirrel the app folder changes with every version, so login goes through Update.exe.
+const LOGIN_OPTS = IS_MAC ? {}
+  : SQUIRREL ? { path: SQUIRREL_UPDATE, args: ['--processStart', `"${EXE_NAME}"`, '--process-start-args', '"--hidden"'] }
+  : { args: ['--hidden'] };
 const openedAtLogin = () => IS_MAC ? app.getLoginItemSettings().wasOpenedAtLogin : process.argv.includes('--hidden');
 
-// Windows only shows toasts for an app with an AppUserModelID that a Start Menu shortcut
-// carries. The installer creates the shortcut; rewriting it here adds the toast activator CLSID
-// and covers a build run straight from dist/win-unpacked.
+function squirrelEvent() {
+  const cmd = SQUIRREL && process.argv.find(a => a.startsWith('--squirrel-'));
+  if (!cmd || cmd === '--squirrel-firstrun') return false; // first run after install: just open the app
+  const update = args => require('child_process').spawn(SQUIRREL_UPDATE, args, { detached: true }).on('close', () => app.quit());
+  if (cmd === '--squirrel-install' || cmd === '--squirrel-updated') {
+    update(['--createShortcut', EXE_NAME]); // Start menu + desktop, with the AppUserModelID toasts need
+  } else if (cmd === '--squirrel-uninstall') {
+    try { app.setLoginItemSettings({ openAtLogin: false, ...LOGIN_OPTS }); } catch { /* best effort */ }
+    update(['--removeShortcut', EXE_NAME]);
+  } else {
+    app.quit(); // --squirrel-obsolete: an older version being replaced
+  }
+  return true;
+}
+const SQUIRREL_EVENT = squirrelEvent();
+
+const PRIMARY = !SQUIRREL_EVENT && (IS_MAC || !BACKGROUND || app.requestSingleInstanceLock());
+if (!PRIMARY) { if (!SQUIRREL_EVENT) app.quit(); }
+else app.on('second-instance', () => showWindow());
+
+// Windows only shows toasts for an app with an AppUserModelID that a Start Menu shortcut carries.
+// Squirrel's shortcuts have one and Electron picks it up by itself; a build run straight from
+// dist/win-unpacked gets its own shortcut here.
 function ensureWinShortcut() {
-  if (!IS_WIN || !BACKGROUND) return;
+  if (!IS_WIN || !BACKGROUND || SQUIRREL) return;
   app.setAppUserModelId(APP_ID);
   app.setToastActivatorCLSID(TOAST_CLSID);
   try {
