@@ -1430,7 +1430,7 @@ function scrVelvet() {
     <form class="vr-contract" id="vr-form" data-week="${wk}">
       <div class="vr-seal">${rev ? '✓' : '§'}</div>
       <div class="vr-tag">THE CONTRACT</div>
-      <h3>Reflect, then bind yourself to the week ahead.</h3>
+      <h2>Reflect, then bind yourself to the week ahead.</h2>
       <div class="fld"><span>Grade this week</span><div class="vr-grades">${GRADES.map(g => `<label><input type="radio" name="grade" value="${g}" ${grade === g ? 'checked' : ''}><span>${g}</span></label>`).join('')}</div></div>
       <div class="vr-qs">
         ${q('well', 'What went well?', 'Shipped the feature. Slept 8h.')}

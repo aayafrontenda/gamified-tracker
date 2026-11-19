@@ -1,19 +1,18 @@
-// `npm run install_app:win`: copies the packaged app to %LOCALAPPDATA%\Programs\Phantom Life.
-// On first launch the app adds itself to the Start Menu (needed for Windows notifications).
+// `npm run install_app:win`: runs the installer built by electron-builder (dist/Phantom Life Setup.exe).
+// One-click, per-user: installs to %LOCALAPPDATA%\Programs, adds a Start Menu shortcut and an
+// uninstaller (Settings → Apps), then starts the app.
 const fs = require('fs');
 const path = require('path');
 const { execFileSync, spawn } = require('child_process');
 
-const src = path.join(__dirname, '..', 'dist', `Phantom Life-win32-${process.arch}`);
-const dest = path.join(process.env.LOCALAPPDATA, 'Programs', 'Phantom Life');
-const exe = path.join(dest, 'Phantom Life.exe');
+const setup = path.join(__dirname, '..', 'dist', 'Phantom Life Setup.exe');
 
-if (!fs.existsSync(src)) {
-  console.error(`Not found: ${src}\nRun "npm run package:win" first.`);
+if (!fs.existsSync(setup)) {
+  console.error(`Not found: ${setup}\nRun "npm run package:win" first.`);
   process.exit(1);
 }
 
-// A running copy locks its files — close it (tray → Quit) before replacing.
+// A running copy locks its files — close it (tray → Quit) before reinstalling.
 try {
   const out = execFileSync('tasklist', ['/FI', 'IMAGENAME eq Phantom Life.exe', '/NH'], { encoding: 'utf8' });
   if (out.includes('Phantom Life.exe')) {
@@ -22,14 +21,15 @@ try {
   }
 } catch { /* tasklist unavailable — try anyway */ }
 
-fs.rmSync(dest, { recursive: true, force: true });
-fs.mkdirSync(path.dirname(dest), { recursive: true });
-fs.cpSync(src, dest, { recursive: true });
-console.log(`Installed to ${dest}`);
-
-// Launch it once so it adds its Start Menu shortcut. ELECTRON_RUN_AS_NODE (set by VS Code's
-// terminal) would make it run as plain Node, so it's cleared for the child.
+// The installer starts the app when it's done, and the app inherits this environment.
+// ELECTRON_RUN_AS_NODE (set by VS Code's terminal) would make it run as plain Node.
 const env = { ...process.env };
 for (const k of Object.keys(env)) if (k.toUpperCase() === 'ELECTRON_RUN_AS_NODE') delete env[k];
-spawn(exe, [], { env, detached: true, stdio: 'ignore' }).unref();
-console.log('Launched. From now on, open it from the Start Menu: "Phantom Life".');
+
+spawn(setup, [], { env, stdio: 'ignore' }).on('exit', code => {
+  if (code) {
+    console.error(`Installer exited with code ${code}.`);
+    process.exit(code);
+  }
+  console.log('Installed. Phantom Life is in the Start Menu; uninstall it from Settings → Apps.');
+});

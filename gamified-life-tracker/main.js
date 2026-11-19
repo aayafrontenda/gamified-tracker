@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, Notification, Tray, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, Notification, Tray, Menu, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { execFile } = require('child_process');
 
 const IS_MAC = process.platform === 'darwin';
 const IS_WIN = process.platform === 'win32';
@@ -30,7 +31,8 @@ const LOGIN_OPTS = IS_MAC ? {} : { args: ['--hidden'] };
 const openedAtLogin = () => IS_MAC ? app.getLoginItemSettings().wasOpenedAtLogin : process.argv.includes('--hidden');
 
 // Windows only shows toasts for an app with an AppUserModelID that a Start Menu shortcut
-// carries. The packaged app is a plain folder (no installer), so it creates that shortcut itself.
+// carries. The installer creates the shortcut; rewriting it here adds the toast activator CLSID
+// and covers a build run straight from dist/win-unpacked.
 function ensureWinShortcut() {
   if (!IS_WIN || !BACKGROUND) return;
   app.setAppUserModelId(APP_ID);
@@ -115,11 +117,24 @@ ipcMain.handle('set-login', (_e, on) => {
   return app.getLoginItemSettings(LOGIN_OPTS).openAtLogin;
 });
 // Delayed so the user can switch to another app: macOS shows no banner for the focused app.
-ipcMain.handle('test-notify', () => {
-  if (!Notification.isSupported()) return 'unsupported';
+ipcMain.handle('test-notify', async () => {
+  if (!Notification.isSupported() || await winToastsBlocked()) return 'unsupported';
   setTimeout(() => remind('dailies', true), 5000);
   return 'scheduled';
 });
+
+// Windows drops toasts silently when they're switched off — for all apps, or for this one
+// (Settings → System → Notifications). Both switches are plain registry values.
+function winToastsBlocked() {
+  if (!IS_WIN) return Promise.resolve(false);
+  const isOff = (key, name) => new Promise(res =>
+    execFile('reg', ['query', key, '/v', name], { windowsHide: true }, (err, out) => res(!err && /REG_DWORD\s+0x0\s*$/m.test(out))));
+  const base = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion';
+  return Promise.all([
+    isOff(`${base}\\PushNotifications`, 'ToastEnabled'),
+    isOff(`${base}\\Notifications\\Settings\\${APP_ID}`, 'Enabled'),
+  ]).then(r => r.some(Boolean));
+}
 ipcMain.handle('save-path', () => savePath());
 
 function createWindow() {
@@ -138,10 +153,14 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
       backgroundThrottling: !process.env.PL_SHOT,
     },
   });
   if (!IS_MAC && app.isPackaged) win.removeMenu();
+  // The UI is one local page: never navigate away or open other windows (links, middle-click, drops).
+  win.webContents.on('will-navigate', e => e.preventDefault());
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.loadFile(path.join(__dirname, 'src', 'index.html'));
   mainWin = win;
   win.on('closed', () => { if (mainWin === win) mainWin = null; });
@@ -312,6 +331,9 @@ const checkReminders = () => ['dailies', 'bed', 'velvet'].forEach(k => remind(k)
 
 app.whenReady().then(() => {
   if (!PRIMARY) return;
+  // No camera, mic, location, etc. — the renderer never needs a web permission.
+  session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
+  session.defaultSession.setPermissionCheckHandler(() => false);
   dailyBackup();
   ensureWinShortcut();
   const st = (readSave() || {}).settings || {};
