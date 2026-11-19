@@ -15,12 +15,14 @@ Build a standalone app:
 
 ```bash
 npm run install_app       # macOS: builds and copies Phantom Life.app into /Applications
-npm run install_app:win   # Windows: builds, copies to %LOCALAPPDATA%\Programs\Phantom Life and launches it
+npm run install_app:win   # Windows: builds the installer and runs it
 ```
 
-On Windows the first launch adds **Phantom Life** to the Start Menu (Windows needs that shortcut
-to show notifications). Closing the window keeps it in the system tray — reminders and the hotkey
-keep working; quit from the tray icon. `npm run package:win` only builds into `dist/`.
+On Windows, `npm run package:win` (electron-builder) builds `dist/Phantom Life Setup.exe` — a one-click
+per-user installer that adds **Phantom Life** to the Start Menu (Windows needs that shortcut to show
+notifications) and to Settings → Apps for uninstalling. The installer can be shared as a single file.
+Closing the window keeps the app in the system tray — reminders and the hotkey keep working; quit
+from the tray icon.
 
 Reminders, the global hotkey and the tray belong to the installed app only, so `npm start` next to
 it doesn't double them.
