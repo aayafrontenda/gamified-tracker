@@ -358,11 +358,15 @@ const statsText = (e, short) => Object.entries(entryStats(e)).filter(([k, v]) =>
 // Every chosen skill gets the full XP (focus skills ×1.5). Each social stat gets points once,
 // even when several chosen skills feed it. The player earns the action's XP once.
 // day: the date the action happened (logging an earlier day uses that week's focus skills and
-// never earns today's Mementos request).
-function buildGains(targets, baseXp, day = dkey()) {
+// never earns today's Mementos request). reqSkill: the skill whose Mementos ×2 applies — by default
+// today's open request; editing an entry passes the one it already earned (or null).
+function buildGains(targets, baseXp, day = dkey(), reqSkill) {
   const skills = {}, stats = {};
   let top = 0, bonus = false, req = false;
-  const rq = day === dkey() ? todaysRequest() : null;
+  if (reqSkill === undefined) {
+    const rq = day === dkey() ? todaysRequest() : null;
+    reqSkill = rq && !rq.done ? rq.skillId : null;
+  }
   for (const t of new Set(targets)) {
     const [kind, id] = String(t).split(':');
     if (kind === 'skill') {
@@ -370,7 +374,7 @@ function buildGains(targets, baseXp, day = dkey()) {
       if (!s) continue;
       const focus = focusSkills(parseKey(day)).includes(id);
       let xp = focus ? Math.round(baseXp * FOCUS_MULT) : baseXp;
-      if (rq && !rq.done && rq.skillId === id) { xp *= 2; req = true; } // Mementos request
+      if (reqSkill && reqSkill === id) { xp *= 2; req = true; } // Mementos request
       bonus = bonus || focus;
       skills[id] = xp;
       stats[s.stat] = Math.max(stats[s.stat] || 0, statPtsFor(xp));
@@ -761,12 +765,13 @@ function targetChips(name, selected, hideStats = []) {
 
 // Live "you will get" line under a target picker. `fixed` = targets always included (e.g. confidant's stat).
 // `fixed(fd)` returns targets always included (e.g. the confidants' stats).
-function bindGainPreview(root, fixed = () => []) {
+// opts.day(): the day to price it for (default: Take Action's "When"); opts.reqSkill: see buildGains.
+function bindGainPreview(root, fixed = () => [], opts = {}) {
   const f = root.querySelector('form'), out = root.querySelector('.gain-preview');
   const update = () => {
     const fd = new FormData(f);
     const I = intensity(fd.get('int'));
-    const g = buildGains([...fd.getAll('target'), ...fixed(fd)], I.xp, formDay(fd) || dkey());
+    const g = buildGains([...fd.getAll('target'), ...fixed(fd)], I.xp, opts.day ? opts.day() : formDay(fd) || dkey(), opts.reqSkill);
     const parts = [
       ...fd.getAll('conf').map(id => `<b>${esc(confById(id)?.name)}</b> bond +${I.cpts}`),
       ...Object.entries(g.skills).map(([id, xp]) => `<b>${esc(skillById(id).name)}</b> +${xp}`),
@@ -886,6 +891,65 @@ function skillModal(id) {
       if (id) Object.assign(s, data);
       else state.skills.push({ id: uid(), createdAt: new Date().toISOString(), ...data });
       persist(); closeModal(); sfx.ok(); render();
+    };
+  });
+}
+
+// Edit a journal entry. Actions: everything (what it trained, effort, minutes, date, note) — XP is
+// recomputed by the same rules as logging, keeping a Mementos ×2 it earned while that skill stays in.
+// Quests, stages and hangouts: note and date only — their reward comes from the quest or the bond.
+function entryModal(id) {
+  const e = state.log.find(x => x.id === id);
+  if (!e || e.kind === 'review') return;
+  const full = e.kind === 'activity';
+  openModal(`
+    <h2 class="m-title">${ransom('EDIT ENTRY', 15)}</h2>
+    <p class="m-sub">${full ? 'Fix what it trained, the effort or the day — XP, levels and ranks recalculate.'
+      : `<b>${esc(entryLabel(e))}</b> · +${e.xp} XP. Its reward comes from the ${e.kind === 'hangout' ? 'bond' : 'quest'}; you can change the note and the day.`}</p>
+    <form id="ee">
+      ${full ? `<div class="fld"><span>Trains</span>${targetChips('target', entryTargets(e))}</div>
+        <div class="fld"><span>Effort</span>${intSeg('int', e.intensity || 'normal')}</div>
+        ${e.minutes ? `<label class="fld ql-time"><span>Time <i>(minutes)</i></span><input type="number" name="minutes" min="1" max="1440" value="${e.minutes}" required></label>` : ''}
+        <div class="gain-preview"></div>` : ''}
+      <label class="fld"><span>Day</span><input type="date" name="date" value="${esc(e.date)}" max="${dkey()}" required></label>
+      <label class="fld"><span>Note <i>(optional)</i></span><textarea name="note" rows="2" maxlength="280">${esc(e.note || '')}</textarea></label>
+      <div class="m-actions">
+        <button type="button" class="btn ghost" data-act="close-modal">Cancel</button>
+        <button class="btn primary">Save</button>
+      </div>
+    </form>`, root => {
+    const f = root.querySelector('form');
+    // the Mementos ×2 this entry earned (if any) stays tied to its skill; otherwise no new one
+    const reqSkill = e.req ? state.requests[e.req] || null : null;
+    if (full) bindGainPreview(root, () => [], { day: () => f.date.value || e.date, reqSkill });
+    f.onsubmit = ev => {
+      ev.preventDefault();
+      const fd = new FormData(f);
+      const day = String(fd.get('date') || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day > dkey()) { toast('PICK A DAY', 'Not in the future'); return; }
+      const before = snapshot();
+      if (full) {
+        const tg = [...new Set(fd.getAll('target'))];
+        if (!tg.length) { toast('PICK ONE', 'Choose at least one skill or stat'); return; }
+        const I = intensity(fd.get('int'));
+        const g = buildGains(tg, I.xp, day, reqSkill);
+        // rewrite in the current entry format (old saves used skillId / stat / statPts)
+        delete e.skillId; delete e.stat; delete e.statPts; delete e.bonus;
+        Object.assign(e, { tg, skills: g.skills, stats: g.stats, xp: g.xp, intensity: I.id }, g.bonus && { bonus: true });
+        if (!g.req) delete e.req;
+        if (e.minutes) e.minutes = Math.round(Number(fd.get('minutes'))) || e.minutes;
+      }
+      if (day !== e.date) {
+        const t = new Date(e.ts), d = parseKey(day);
+        d.setHours(t.getHours(), t.getMinutes(), t.getSeconds());
+        Object.assign(e, { date: day, ts: d.toISOString() });
+      }
+      e.note = String(fd.get('note') || '').trim();
+      persist(); closeModal(); sfx.ok();
+      announce(before, snapshot());
+      checkCompendium();
+      render();
+      toast('EDITED', `${entryLabel(e)} · +${e.xp} XP`);
     };
   });
 }
@@ -1305,7 +1369,8 @@ const jItem = e => `
     <span class="j-kind ${e.kind}">${KIND_TAG[e.kind] || 'ACTION'}</span>
     <span class="j-label">${esc(entryLabel(e))}${e.minutes ? ` <span class="j-min">· ${fmtMin(e.minutes)}</span>` : ''}${e.note ? ` — <i>${esc(e.note)}</i>` : ''}</span>
     <span class="j-xp">+${e.xp}${statsText(e, true) ? ' · ' + statsText(e, true) : ''}</span>
-    <button class="ic" data-act="del-entry" data-id="${e.id}" title="Delete (undo)">✕</button>
+    ${e.kind === 'review' ? '<span></span>' : `<button class="ic" data-act="edit-entry" data-id="${e.id}" title="Edit" aria-label="Edit entry">✎</button>`}
+    <button class="ic" data-act="del-entry" data-id="${e.id}" title="Delete (undo)" aria-label="Delete entry">✕</button>
   </div>`;
 
 let journalTab = 'log';
@@ -2400,6 +2465,7 @@ const ACTIONS = {
     state.confidants = state.confidants.filter(x => x.id !== c.id);
     persist(); sfx.back(); render();
   },
+  'edit-entry': ds => entryModal(ds.id),
   'del-entry': async ds => {
     const e = state.log.find(x => x.id === ds.id);
     if (!await askConfirm('UNDO THIS?', `Remove "${entryLabel(e)}" (+${e.xp} XP) from ${e.date}? Levels and ranks recalculate.`, 'Remove')) return;
