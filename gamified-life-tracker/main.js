@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, Notification, Tray, Menu, session, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, Notification, Tray, Menu, session, powerMonitor, clipboard, ClipboardItem, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { execFile } = require('child_process');
@@ -165,6 +165,49 @@ function winToastsBlocked() {
   ]).then(r => r.some(Boolean));
 }
 ipcMain.handle('save-path', () => savePath());
+
+/* ---------- week card: the renderer's card HTML → a 1080×1080 PNG ----------
+   Drawn in a hidden window sized so its pixels come out at 1080 on this display (the card is laid
+   out at 540 CSS px and zoomed), then copied to the clipboard or saved. */
+const CARD_PX = 1080;
+async function renderCard(html) {
+  const dpr = screen.getPrimaryDisplay().scaleFactor || 1;
+  const size = Math.ceil(CARD_PX / dpr);
+  const win = new BrowserWindow({
+    width: size, height: size, useContentSize: true, show: false, frame: false, skipTaskbar: true,
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
+  });
+  win.webContents.on('will-navigate', e => e.preventDefault());
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  try {
+    await win.loadFile(path.join(__dirname, 'src', 'card.html'));
+    await win.webContents.executeJavaScript(
+      `document.body.innerHTML = ${JSON.stringify(String(html))}; document.body.style.zoom = ${size / 540}; document.fonts.ready.then(() => true)`);
+    await new Promise(r => setTimeout(r, 120));
+    let img = await win.webContents.capturePage({ x: 0, y: 0, width: size, height: size });
+    const s = img.getSize();
+    if (s.width !== CARD_PX || s.height !== CARD_PX) img = img.resize({ width: CARD_PX, height: CARD_PX, quality: 'best' });
+    return img;
+  } finally {
+    win.destroy();
+  }
+}
+// mode 'copy' → clipboard; 'save' → asks where (name = suggested file name). Resolves true when done.
+ipcMain.handle('week-card', async (_e, html, mode, name) => {
+  const img = await renderCard(html);
+  if (mode === 'copy') {
+    // Electron 44's clipboard follows the W3C API: write([ClipboardItem]) — there's no writeImage.
+    await clipboard.write([new ClipboardItem({ 'image/png': new Blob([img.toPNG()], { type: 'image/png' }) })]);
+    return true;
+  }
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWin || undefined, {
+    defaultPath: path.join(app.getPath('pictures'), String(name || 'phantom-life-week.png').replace(/[\\/:*?"<>|]/g, '-')),
+    filters: [{ name: 'PNG image', extensions: ['png'] }],
+  });
+  if (canceled || !filePath) return false;
+  fs.writeFileSync(filePath, img.toPNG());
+  return true;
+});
 
 function createWindow() {
   const win = new BrowserWindow({
