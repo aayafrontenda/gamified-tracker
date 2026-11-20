@@ -1772,6 +1772,7 @@ function scrVelvet() {
       <button class="vr-arrow" data-act="vr-week" data-dir="-1" title="Previous week">◀</button>
       <div class="vr-week"><span>WEEK OF</span><b>${fmtMD(wk)} – ${fmtMD(dkey(W.end))}</b></div>
       <button class="vr-arrow" data-act="vr-week" data-dir="1" title="Next week" ${wk >= cur ? 'disabled' : ''}>▶</button>
+      ${W.actions ? `<button class="btn small vr-share" data-act="week-card" data-wk="${wk}">Share week</button>` : ''}
       <span class="vr-status ${rev ? 'done' : ''}">${rev ? `Appraised · Grade ${esc(rev.grade || '—')}` : 'Awaiting appraisal'}</span>
     </div>
 
@@ -1842,6 +1843,84 @@ document.addEventListener('submit', e => {
   e.preventDefault();
   sealContract(e.target);
 });
+
+/* ---------- week card: a 1080×1080 image of a week, to share ----------
+   Laid out at 540 CSS px; main.js renders it in a hidden window at 1080 px for Copy / Save.
+   Shows numbers only — the Velvet Room reflections stay private. */
+function weekCardHTML(wk) {
+  const W = weekStats(wk);
+  const days = Array.from({ length: 7 }, (_, i) => dkey(addDays(W.start, i)));
+  const active = new Set(state.log.filter(e => days.includes(e.date) && e.kind !== 'review').map(e => e.date));
+  const top = Object.entries(W.skills).map(([id, xp]) => [skillById(id), xp]).filter(([s]) => s).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const topMax = top.length ? top[0][1] : 1;
+  const rev = state.reviews[wk];
+  const focus = (rev?.focus || []).map(skillById).filter(Boolean);
+  const personas = PERSONAS.filter(p => days.includes(state.compendium[p.id])).length;
+  const missions = state.log.filter(e => days.includes(e.date) && e.kind === 'quest' && state.quests.find(q => q.id === e.questId)?.type === 'once').length;
+  const stages = state.log.filter(e => days.includes(e.date) && e.kind === 'stage').length;
+  const pl = playerLevel(D.total);
+  const isCur = wk === weekKey(new Date());
+  const streak = isCur ? dayStreak() : 0;
+  const extras = [
+    personas && `${personas} persona${personas === 1 ? '' : 's'} awakened`,
+    missions && `${missions} mission${missions === 1 ? '' : 's'} cleared`,
+    stages && `${stages} mission stage${stages === 1 ? '' : 's'}`,
+    W.dailyRate > 0 && `${Math.round(W.dailyRate * 100)}% dailies kept`, // a share card brags; 0% stays off it
+  ].filter(Boolean);
+  return `<div class="wk-card">
+    <div class="wk-slash"></div>
+    <div class="wk-brand">PHANTOM LIFE</div>
+    <div class="wk-head">
+      <div class="wk-kicker">WEEK OF</div>
+      <div class="wk-dates">${fmtMD(wk)} – ${fmtMD(dkey(W.end))}</div>
+      <div class="wk-name">${esc(state.player.name)}</div>
+      <div class="wk-lv">LV ${pl.lvl} · ${esc(titleFor(pl.lvl))}</div>
+    </div>
+    <div class="wk-xp"><b>+${W.xp}</b><span>XP this week</span></div>
+    <div class="wk-days">${days.map(k => `<i class="${active.has(k) ? 'on' : ''}">${DOW[parseKey(k).getDay()][0]}</i>`).join('')}
+      <span>${active.size}/7 days${streak > 1 ? ` · ${streak}-day streak` : ''}</span></div>
+    ${rev?.grade ? `<div class="wk-grade"><span>GRADE</span><b>${esc(rev.grade)}</b></div>` : ''}
+    <div class="wk-right">
+      <div class="wk-tag">TOP SKILLS</div>
+      ${top.length ? top.map(([s, xp]) => `<div class="wk-sk">${skillBadge(s)}<span>${esc(s.name)}</span><b>+${xp}</b>
+        <div class="wk-bar"><i style="width:${Math.round((xp / topMax) * 100)}%"></i></div></div>`).join('') : '<div class="wk-none">No skills trained</div>'}
+      <div class="wk-tag">SOCIAL STATS</div>
+      <div class="wk-stats">${STAT_ORDER.map(k => `<span class="${W.stats[k] ? 'on' : ''}">${STATS[k].name.slice(0, 4)} <b>+${W.stats[k]}</b></span>`).join('')}</div>
+      ${focus.length ? `<div class="wk-tag">NEXT WEEK'S FOCUS</div><div class="wk-focus">${focus.map(s => `<span>${skillBadge(s)}${esc(s.name)}</span>`).join('')}</div>` : ''}
+    </div>
+    ${extras.length ? `<div class="wk-foot">${extras.map(esc).join(' · ')}</div>` : ''}
+  </div>`;
+}
+
+function openWeekCard(wk) {
+  const W = weekStats(wk);
+  const html = weekCardHTML(wk);
+  const pasteKey = IS_MAC ? '⌘V' : 'Ctrl+V';
+  openModal(`
+    <h2 class="m-title">${ransom('SHARE THE WEEK', 21)}</h2>
+    <p class="m-sub">A 1080×1080 image of your week. Numbers only — your Velvet Room notes stay private.</p>
+    <div class="wk-preview" role="img" aria-label="Week of ${fmtMD(wk)}: +${W.xp} XP over ${W.activeDays} active days">
+      <div aria-hidden="true">${html}</div></div>
+    <div class="m-actions">
+      <button type="button" class="btn ghost" data-act="close-modal">Close</button>
+      <button type="button" class="btn" id="wk-save">Save PNG</button>
+      <button type="button" class="btn primary" id="wk-copy">Copy image</button>
+    </div>`, root => {
+    const run = async (btn, mode) => {
+      btn.disabled = true;
+      try {
+        const ok = await window.api.weekCard(html, mode, `phantom-life-week-${wk}.png`);
+        if (ok) { sfx.ok(); toast(mode === 'copy' ? 'COPIED' : 'SAVED', mode === 'copy' ? `Paste it anywhere with ${pasteKey}` : 'Week card saved'); }
+      } catch {
+        toast('ERROR', 'Could not make the image');
+      } finally {
+        btn.disabled = false;
+      }
+    };
+    root.querySelector('#wk-copy').onclick = e => run(e.currentTarget, 'copy');
+    root.querySelector('#wk-save').onclick = e => run(e.currentTarget, 'save');
+  });
+}
 
 /* ---------- shop ---------- */
 function rewardModal(id) {
@@ -2466,6 +2545,7 @@ const ACTIONS = {
     persist(); sfx.back(); render();
   },
   'edit-entry': ds => entryModal(ds.id),
+  'week-card': ds => openWeekCard(ds.wk),
   'del-entry': async ds => {
     const e = state.log.find(x => x.id === ds.id);
     if (!await askConfirm('UNDO THIS?', `Remove "${entryLabel(e)}" (+${e.xp} XP) from ${e.date}? Levels and ranks recalculate.`, 'Remove')) return;

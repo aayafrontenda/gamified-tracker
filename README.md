@@ -42,7 +42,8 @@ Runs on **macOS** and **Windows**. Everything stays on your computer: no account
   grows their stat and can also train skills. One meeting can include several confidants.
 - **Velvet Room**: Igor reviews your week (XP pace, stat growth, neglected skills, distant confidants,
   upcoming deadlines). Grade the week, reflect, and seal a contract (+50 XP) choosing up to 3
-  **focus skills** that earn ×1.5 XP the following week.
+  **focus skills** that earn ×1.5 XP the following week. **Share week** turns any week into a
+  1080×1080 card — copy it to the clipboard or save a PNG. It shows numbers only; your notes stay private.
 - **Shop**: every XP also pays ¥10. Define your own rewards and buy them with what you earned.
 - **Morgana**: notifications for unfinished dailies, bedtime and the Sunday Velvet Room. They keep
   working with the window closed.
