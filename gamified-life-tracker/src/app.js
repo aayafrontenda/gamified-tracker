@@ -43,7 +43,7 @@ const TITLES = [
 ];
 
 const QUOTES = [
-  'Take your time.', 'Looking cool, Joker!', 'I am thou, thou art I.', 'Steal back your future.',
+  'Take your time.', 'Looking cool, {name}!', // {name} → the player's codename 'I am thou, thou art I.', 'Steal back your future.',
   'Wake up. Get up. Get out there.', 'Show me your true form.', 'The game is rigged? Rewrite the rules.',
   'You never see it coming.', 'Rebel against a distorted life.',
 ];
@@ -357,16 +357,18 @@ const statsText = (e, short) => Object.entries(entryStats(e)).filter(([k, v]) =>
 
 // Every chosen skill gets the full XP (focus skills ×1.5). Each social stat gets points once,
 // even when several chosen skills feed it. The player earns the action's XP once.
-function buildGains(targets, baseXp) {
+// day: the date the action happened (logging an earlier day uses that week's focus skills and
+// never earns today's Mementos request).
+function buildGains(targets, baseXp, day = dkey()) {
   const skills = {}, stats = {};
   let top = 0, bonus = false, req = false;
-  const rq = todaysRequest();
+  const rq = day === dkey() ? todaysRequest() : null;
   for (const t of new Set(targets)) {
     const [kind, id] = String(t).split(':');
     if (kind === 'skill') {
       const s = skillById(id);
       if (!s) continue;
-      const focus = isFocus(id);
+      const focus = focusSkills(parseKey(day)).includes(id);
       let xp = focus ? Math.round(baseXp * FOCUS_MULT) : baseXp;
       if (rq && !rq.done && rq.skillId === id) { xp *= 2; req = true; } // Mementos request
       bonus = bonus || focus;
@@ -391,11 +393,22 @@ function commit(entry) {
   sfx.ok();
   const label = entryLabel(e);
   const st = statsText(e);
-  toast(`+${e.xp} XP`, `${label}${e.req ? ' · REQUEST ×2' : ''}${e.bonus ? ' · FOCUS ×1.5' : ''}${st ? ' · ' + st : ''} · +${fmtYen(e.xp * YEN_PER_XP)}`);
+  const when = e.date === dkey() ? '' : e.date === dkey(addDays(new Date(), -1)) ? ' · yesterday' : ` · ${fmtMD(e.date)}`;
+  toast(`+${e.xp} XP`, `${label}${when}${e.req ? ' · REQUEST ×2' : ''}${e.bonus ? ' · FOCUS ×1.5' : ''}${st ? ' · ' + st : ''} · +${fmtYen(e.xp * YEN_PER_XP)}`,
+    { label: 'Undo', fn: () => undoEntry(e.id) });
   announce(before, after);
   checkCompendium();
   render();
   return e;
+}
+
+// The Undo on the toast after an action. Deleting the entry in the journal does the same.
+function undoEntry(id) {
+  const e = state.log.find(x => x.id === id);
+  if (!e) return;
+  state.log = state.log.filter(x => x !== e);
+  persist(); sfx.back(); render();
+  toast('UNDONE', `${entryLabel(e)} · −${e.xp} XP`);
 }
 
 function announce(b, a) {
@@ -418,7 +431,7 @@ function announce(b, a) {
 function logActivity(targets, intId, note = '', extra = {}) {
   const I = intensity(intId);
   const tg = [...new Set(targets)];
-  const g = buildGains(tg, I.xp);
+  const g = buildGains(tg, I.xp, extra.date || dkey());
   if (!g.xp) return;
   commit({ kind: 'activity', tg, skills: g.skills, stats: g.stats, xp: g.xp, intensity: I.id, note, ...extra, ...(g.bonus && { bonus: true }), ...(g.req && { req: dkey() }) });
 }
@@ -653,13 +666,24 @@ const sfx = {
 };
 
 /* ---------- toasts & rank-up ---------- */
-function toast(big, small = '') {
+// action: { label, fn } adds a button. Toasts with one stay longer (8 s) and wait while hovered or
+// focused, so there's time to reach the button.
+function toast(big, small = '', action = null) {
   const el = document.createElement('div');
-  el.className = 'toast';
-  el.innerHTML = `<b>${esc(big)}</b><span>${esc(small)}</span>`;
+  el.className = `toast ${action ? 'has-action' : ''}`;
+  el.innerHTML = `<b>${esc(big)}</b><span>${esc(small)}</span>${action ? `<button class="toast-act">${esc(action.label)}</button>` : ''}`;
   $('#toasts').appendChild(el);
-  setTimeout(() => el.classList.add('out'), 2600);
-  setTimeout(() => el.remove(), 3100);
+  let timer;
+  const hide = () => { el.classList.add('out'); setTimeout(() => el.remove(), 500); };
+  const arm = () => { clearTimeout(timer); timer = setTimeout(hide, action ? 8000 : 2600); };
+  if (action) {
+    el.querySelector('.toast-act').onclick = () => { clearTimeout(timer); el.remove(); action.fn(); };
+    el.addEventListener('mouseenter', () => clearTimeout(timer));
+    el.addEventListener('mouseleave', arm);
+    el.addEventListener('focusin', () => clearTimeout(timer));
+    el.addEventListener('focusout', arm);
+  }
+  arm();
 }
 
 const rankQueue = [];
@@ -742,7 +766,7 @@ function bindGainPreview(root, fixed = () => []) {
   const update = () => {
     const fd = new FormData(f);
     const I = intensity(fd.get('int'));
-    const g = buildGains([...fd.getAll('target'), ...fixed(fd)], I.xp);
+    const g = buildGains([...fd.getAll('target'), ...fixed(fd)], I.xp, formDay(fd) || dkey());
     const parts = [
       ...fd.getAll('conf').map(id => `<b>${esc(confById(id)?.name)}</b> bond +${I.cpts}`),
       ...Object.entries(g.skills).map(([id, xp]) => `<b>${esc(skillById(id).name)}</b> +${xp}`),
@@ -754,6 +778,17 @@ function bindGainPreview(root, fixed = () => []) {
   f.addEventListener('change', update);
   update();
 }
+
+// The day picked under "When" in Take Action (today if there's no such field); '' if the date is invalid.
+function formDay(fd) {
+  const w = fd.get('when') || 'today';
+  if (w === 'yesterday') return dkey(addDays(new Date(), -1));
+  if (w !== 'date') return dkey();
+  const k = String(fd.get('whenDate') || '');
+  return /^\d{4}-\d{2}-\d{2}$/.test(k) && k <= dkey() && k >= dkey(addDays(new Date(), -365)) ? k : '';
+}
+// A timestamp on that day, at the current time of day (keeps the journal's order sensible).
+const tsOn = day => { const d = parseKey(day), n = new Date(); d.setHours(n.getHours(), n.getMinutes(), n.getSeconds()); return d.toISOString(); };
 
 // opts.timer: log the stopped timer — its skills, its minutes, an effort picked from them.
 function openQuickLog(preTarget, opts = {}) {
@@ -770,6 +805,12 @@ function openQuickLog(preTarget, opts = {}) {
       ${t ? `<label class="fld ql-time"><span>Time <i>(minutes)</i></span><input type="number" name="minutes" min="1" max="1440" value="${minutes}" required></label>
         ${minutes > 360 ? '<p class="ql-warn">That’s a long session — check the minutes if the timer kept running by mistake.</p>' : ''}` : ''}
       <div class="fld"><span>Effort</span>${intSeg('int', t ? effortFor(minutes) : 'normal')}</div>
+      ${t ? '' : `<div class="fld"><span>When</span><div class="when-row">
+        <div class="seg when">${[['today', 'Today'], ['yesterday', 'Yesterday'], ['date', 'Earlier…']].map(([v, l]) =>
+          `<label><input type="radio" name="when" value="${v}" ${v === 'today' ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
+        <input type="date" name="whenDate" class="when-date hidden" aria-label="Date it happened"
+          min="${dkey(addDays(new Date(), -365))}" max="${dkey()}" value="${dkey(addDays(new Date(), -2))}">
+      </div></div>`}
       <div class="gain-preview"></div>
       <label class="fld"><span>Note <i>(optional)</i></span><textarea name="note" rows="2" maxlength="280" placeholder="Deployed the k8s cluster, finally."></textarea></label>
       <div class="m-actions">
@@ -791,6 +832,11 @@ function openQuickLog(preTarget, opts = {}) {
         f.dispatchEvent(new Event('change'));
       });
     } else {
+      f.addEventListener('change', e => {
+        if (e.target.name !== 'when') return;
+        f.whenDate.classList.toggle('hidden', e.target.value !== 'date');
+        if (e.target.value === 'date') f.whenDate.focus();
+      });
       root.querySelector('#ql-timer').onclick = () => {
         const tg = new FormData(f).getAll('target');
         if (!tg.length) { toast('PICK ONE', 'Choose at least one skill or stat'); return; }
@@ -803,11 +849,13 @@ function openQuickLog(preTarget, opts = {}) {
       const fd = new FormData(f);
       const tg = fd.getAll('target');
       if (!tg.length) { toast('PICK ONE', 'Choose at least one skill or stat'); return; }
+      const day = formDay(fd);
+      if (!day) { toast('PICK A DATE', 'Up to a year back, not in the future'); return; }
       closeModal();
       if (t) {
         logActivity(tg, fd.get('int'), String(fd.get('note') || '').trim(), { minutes: Math.round(Number(fd.get('minutes'))) || minutes });
         clearTimer();
-      } else logActivity(tg, fd.get('int'), String(fd.get('note') || '').trim());
+      } else logActivity(tg, fd.get('int'), String(fd.get('note') || '').trim(), day === dkey() ? {} : { date: day, ts: tsOn(day) });
     };
     f.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) f.requestSubmit(); });
   });
@@ -995,7 +1043,7 @@ const bar = (pct, cls = '') => `<div class="bar ${cls}"><i style="width:${Math.m
 const pips = (n, total) => `<div class="pips">${Array.from({ length: total }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</div>`;
 function head(id, quote) {
   const s = SCREENS.find(x => x.id === id);
-  const q = quote || QUOTES[(new Date().getDate() + SCREENS.indexOf(s)) % QUOTES.length];
+  const q = (quote || QUOTES[(new Date().getDate() + SCREENS.indexOf(s)) % QUOTES.length]).replace('{name}', state.player.name);
   return `<header class="scr-head"><h1>${ransom(s.label.toUpperCase(), SCREENS.indexOf(s) + 2)}</h1><div class="scr-sub"><span>${esc(s.sub)}</span><em>“${esc(q)}”</em></div></header>`;
 }
 const empty = (big, small, act, btn) => `<div class="empty"><b>${esc(big)}</b><span>${esc(small)}</span>${act ? `<button class="btn primary" data-act="${act}">${esc(btn)}</button>` : ''}</div>`;
@@ -1356,6 +1404,7 @@ function niceMax(v) {
 }
 
 function journalCharts() {
+  if (!state.log.length) return empty('No charts yet.', 'They fill in as you log actions: XP per week, social stat growth, your skills over the last 30 days.', 'quick-log', 'Take action');
   const weeks = 26, cur = parseKey(weekKey(new Date()));
   const wk = Array.from({ length: weeks }, (_, i) => addDays(cur, -7 * (weeks - 1 - i)));
   const wkKey = wk.map(dkey);
@@ -1488,7 +1537,9 @@ const isFocus = id => !!id && focusSkills().includes(id);
 function pendingReviewWeek() {
   const now = new Date(), dw = now.getDay();
   const cur = weekKey(now), prev = prevWeek(cur);
-  if ((dw === 0 || dw >= 5) && !state.reviews[cur]) return cur;
+  const active = wk => state.log.some(e => weekKey(parseKey(e.date)) === wk);
+  // only weeks with something in them — a brand-new character has nothing to appraise yet
+  if ((dw === 0 || dw >= 5) && !state.reviews[cur] && active(cur)) return cur;
   if ((dw === 1 || dw === 2) && !state.reviews[prev] && state.log.some(e => weekKey(parseKey(e.date)) === prev)) return prev;
   return null;
 }
@@ -1771,7 +1822,7 @@ async function buyReward(id) {
   const r = state.rewards.find(x => x.id === id);
   if (!r) return;
   if (D.yen < r.price) { toast('NOT ENOUGH ¥', `${fmtYen(r.price - D.yen)} more to go`); return; }
-  if (!await askConfirm('BUY THIS?', `${r.name} for ${fmtYen(r.price)}. You earned it, Joker.`, `Buy · ${fmtYen(r.price)}`)) return;
+  if (!await askConfirm('BUY THIS?', `${r.name} for ${fmtYen(r.price)}. You earned it, ${state.player.name}.`, `Buy · ${fmtYen(r.price)}`)) return;
   state.purchases.push({ id: uid(), rewardId: r.id, name: r.name, price: r.price, icon: r.icon, ts: new Date().toISOString(), date: dkey() });
   persist(); sfxCoin(); checkCompendium(); render();
   toast(`-${fmtYen(r.price)}`, `${r.name} · Thank you, come again!`);

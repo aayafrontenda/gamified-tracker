@@ -29,6 +29,8 @@ Runs on **macOS** and **Windows**. Everything stays on your computer: no account
   in the sidebar and on the tray icon, survives closing the app, and can be paused. Stop logs it with
   the minutes and a matching effort. Step away from the computer for 10+ minutes and it asks whether
   to drop that time.
+- Forgot to log something? Pick **Yesterday** or an earlier date under *When*. Logged the wrong thing?
+  Hit **Undo** on the toast right after.
 - **Skills** level up from XP. Each skill feeds one **social stat** (XP ÷ 5 points).
 - **Social stats** — Knowledge, Guts, Proficiency, Kindness, Charm — have 5 ranks, at
   40 / 120 / 280 / 560 points.
