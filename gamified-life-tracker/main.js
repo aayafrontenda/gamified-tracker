@@ -187,8 +187,9 @@ function createWindow() {
       backgroundThrottling: !process.env.PL_SHOT && !HIDDEN,
     },
   });
+  // Zero-length (not removed) animations, so fill-forwards ones still land on their final state.
   if (HIDDEN) win.webContents.on('did-finish-load', () => win.webContents.insertCSS(
-    '*, *::before, *::after { animation: none !important; transition: none !important; }'));
+    '*, *::before, *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition: none !important; }'));
   if (!IS_MAC && app.isPackaged) win.removeMenu();
   // The UI is one local page: never navigate away or open other windows (links, middle-click, drops).
   win.webContents.on('will-navigate', e => e.preventDefault());
@@ -384,6 +385,7 @@ function remind(kind, force = false) {
   const save = readSave();
   if (!save) return;
   const st = save.settings || {};
+  const name = (save.player && save.player.name) || 'Joker'; // the codename picked at character creation
   const now = new Date(), today = dkey(now);
   const nowMin = now.getHours() * 60 + now.getMinutes();
   // Fire once a day, only within 90 min after the chosen time (so a late launch doesn't nag at noon).
@@ -399,15 +401,15 @@ function remind(kind, force = false) {
     if (!left.length && !force) return;
     const list = left.slice(0, 3).map(q => q.title).join(', ') + (left.length > 3 ? '…' : '');
     return notify('Morgana', left.length ? pick([
-      `Hey Joker! You've still got ${left.length} daily quest${left.length > 1 ? 's' : ''}: ${list}.`,
+      `Hey ${name}! You've still got ${left.length} daily quest${left.length > 1 ? 's' : ''}: ${list}.`,
       `Don't slack off now! ${list} still need${left.length > 1 ? '' : 's'} doing.`,
       `Mrrrow… the day's almost over and ${list} ${left.length > 1 ? "aren't" : "isn't"} done.`,
-    ]) : 'All dailies cleared today. Not bad, Joker!', 'quests');
+    ]) : `All dailies cleared today. Not bad, ${name}!`, 'quests');
   }
   if (kind === 'bed' && due(st.remindBed, st.bedAt || '23:30')) {
     fired[kind] = today;
     notify('Morgana', pick([
-      "Let's go to sleep, Joker.",
+      `Let's go to sleep, ${name}.`,
       "It's getting late. Let's call it a day.",
       'You should get some rest. Big day tomorrow.',
     ]), 'status');
