@@ -530,6 +530,49 @@ kbd {
 .quest.done { border-left-color: #444; }
 .q-section.cleared .quest { opacity: .7; }
 
+/* mission stages */
+.quest.staged { align-items: flex-start; }
+.ms-prog { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.ms-prog .bar { flex: 1; max-width: 260px; height: 10px; border-width: 1.5px; }
+.ms-prog > span:not(.chip) { font: italic 900 13px var(--display); letter-spacing: .5px; text-transform: uppercase; white-space: nowrap; }
+.chip.pace-on { background: transparent; border: 1px solid #4ade80; color: #4ade80; }
+.chip.pace-behind { background: transparent; border: 1px solid var(--red-hi); color: var(--red-hi); }
+.ms-stages { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.ms-stages li { display: flex; align-items: center; gap: 10px; min-height: 26px; }
+.ms-check {
+  flex: none; position: relative; width: 20px; height: 20px; padding: 0;
+  background: transparent; border: 2px solid var(--white); transform: rotate(-8deg);
+  transition: transform .15s var(--ease), background .15s;
+}
+.ms-check:hover { background: rgba(229,0,28,.35); transform: rotate(-8deg) scale(1.1); }
+.ms-stages li.done .ms-check { background: var(--red); }
+.ms-stages li.done .ms-check i::after {
+  content: "✓"; position: absolute; inset: -9px -6px 0 0;
+  font: 900 22px var(--display); color: var(--white); text-shadow: 2px 2px 0 var(--black);
+}
+.ms-title { min-width: 0; font-weight: 600; }
+.ms-stages li.done .ms-title { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--red); }
+.ms-when { color: var(--muted); font-size: 12px; }
+.ms-stages .chip { font-size: 11px; padding: 1px 7px; }
+
+/* stage editor in the quest dialog */
+.stage-edit { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.stage-edit:empty { display: none; }
+.stage-edit li { display: grid; grid-template-columns: 1fr 160px 30px; gap: 8px; align-items: center; }
+.stage-edit input { background: var(--ink); color: var(--white); border: 2px solid #444; padding: 7px 9px; font: 600 14px var(--body); outline: none; }
+.stage-edit input[type=date] { color-scheme: dark; }
+.stage-edit input:focus { border-color: var(--white); box-shadow: 3px 3px 0 var(--red); }
+.stages-fld > .btn { align-self: flex-start; }
+
+/* calling card: mission stages */
+.cc-stages { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.cc-stages .bar { flex: 1; height: 10px; border-color: var(--black); }
+.cc-stages span, .cc-next {
+  background: var(--black); color: var(--white); padding: 1px 8px;
+  font: italic 900 12px var(--display); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap;
+}
+.cc-next { align-self: flex-start; margin-top: 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
 /* ---------- confidants ---------- */
 .conf-card {
   display: flex; background: var(--ink); border: 2px solid var(--white); box-shadow: 7px 7px 0 var(--red);
@@ -581,6 +624,7 @@ kbd {
 .j-time { font: 12px ui-monospace, Menlo, monospace; color: var(--muted); }
 .j-kind { font: italic 900 11px var(--display); letter-spacing: 1px; padding: 2px 6px; text-align: center; transform: skewX(-10deg); background: var(--ink-2); border: 1px solid #555; }
 .j-kind.quest { background: var(--red); border-color: var(--red); color: var(--on-red); }
+.j-kind.stage { background: transparent; border-color: var(--red-hi); color: var(--red-hi); }
 .j-kind.hangout { background: var(--white); color: var(--black); border-color: var(--white); }
 .j-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .j-label i { color: var(--muted); }
