@@ -49,7 +49,8 @@ Runs on **macOS** and **Windows**. Everything stays on your computer: no account
 - **Compendium**: 29 personas that awaken at milestones (streaks, ranks, missions, contracts…).
 - **Mementos requests**: each day a neglected skill is picked — the first action on it earns ×2 XP.
 - **Condition**: log how you feel each day and see how it affects your output.
-- **Journal**: delete an entry to undo it — every level and rank is recalculated from the history.
+- **Journal**: edit an entry (✎) to fix what it trained, the effort, the day or the note, or delete it to undo
+  it — every level and rank is recalculated from the history.
 
 **Keys:** `1`–`8` switch screens · `L` take action · `⌘⇧L` / `Ctrl+Shift+L` take action from any app ·
 `⌘,` / `Ctrl+,` settings · `⌘↵` / `Ctrl+Enter` submit · `Esc` close.
