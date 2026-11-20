@@ -34,6 +34,8 @@ Runs on **macOS** and **Windows**. Everything stays on your computer: no account
   40 / 120 / 280 / 560 points.
 - **Quests**: daily (with streaks, optionally on chosen weekdays only), weekly (reset Monday), and
   one-off **missions** with deadlines that show up as a calling card on the Status screen.
+- **Mission stages**: break a mission into steps, each with an optional deadline. Every step pays XP,
+  the last one clears the mission, and a pace marker says whether you're on track for the deadline.
 - **Confidants**: people you want to grow closer to. 10 ranks each, pick their arcana. Time together
   grows their stat and can also train skills. One meeting can include several confidants.
 - **Velvet Room**: Igor reviews your week (XP pace, stat growth, neglected skills, distant confidants,
@@ -42,7 +44,7 @@ Runs on **macOS** and **Windows**. Everything stays on your computer: no account
 - **Shop**: every XP also pays ¥10. Define your own rewards and buy them with what you earned.
 - **Morgana**: notifications for unfinished dailies, bedtime and the Sunday Velvet Room. They keep
   working with the window closed.
-- **Compendium**: 28 personas that awaken at milestones (streaks, ranks, missions, contracts…).
+- **Compendium**: 29 personas that awaken at milestones (streaks, ranks, missions, contracts…).
 - **Mementos requests**: each day a neglected skill is picked — the first action on it earns ×2 XP.
 - **Condition**: log how you feel each day and see how it affects your output.
 - **Journal**: delete an entry to undo it — every level and rank is recalculated from the history.
