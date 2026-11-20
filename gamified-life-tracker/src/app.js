@@ -423,9 +423,10 @@ function logActivity(targets, intId, note = '', extra = {}) {
   commit({ kind: 'activity', tg, skills: g.skills, stats: g.stats, xp: g.xp, intensity: I.id, note, ...extra, ...(g.bonus && { bonus: true }), ...(g.req && { req: dkey() }) });
 }
 
+// The entry that completes q this period. Mission-stage entries carry the questId too, so skip them.
 function questCompletion(q) {
   const today = dkey(), wk = weekKey(new Date());
-  return state.log.find(e => e.questId === q.id && (
+  return state.log.find(e => e.questId === q.id && e.kind !== 'stage' && (
     q.type === 'daily' ? e.date === today :
     q.type === 'weekly' ? weekKey(parseKey(e.date)) === wk : true));
 }
@@ -444,7 +445,7 @@ function scheduleLabel(q) {
 
 function questStreak(q) {
   if (q.type !== 'daily') return 0;
-  const done = new Set(state.log.filter(e => e.questId === q.id).map(e => e.date));
+  const done = new Set(state.log.filter(e => e.questId === q.id && e.kind !== 'stage').map(e => e.date));
   if (!done.size) return 0;
   let d = startOfDay();
   if (!done.has(dkey(d))) d = addDays(d, -1); // today still open
@@ -465,7 +466,7 @@ function dayStreak() {
   return n;
 }
 
-function toggleQuest(id) {
+async function toggleQuest(id) {
   const q = state.quests.find(x => x.id === id);
   if (!q) return;
   const done = questCompletion(q);
@@ -474,9 +475,64 @@ function toggleQuest(id) {
     persist(); sfx.back(); render();
     return;
   }
+  const left = stagesOf(q).filter(s => !stageDone(q, s)).length;
+  if (left && !await askConfirm('CLEAR IT NOW?', `${left} stage${left === 1 ? '' : 's'} still open. Clear the whole mission anyway?`, 'Clear mission')) return;
+  completeQuest(q);
+}
+
+function completeQuest(q) {
   const I = intensity(q.intensity);
   const g = buildGains([q.target], I.xp);
   commit({ kind: 'quest', questId: q.id, tg: [q.target], skills: g.skills, stats: g.stats, xp: g.xp || I.xp, intensity: I.id, note: q.title, ...(g.bonus && { bonus: true }), ...(g.req && { req: dkey() }) });
+  if (q.type === 'once') queueRankUp({ kicker: 'MISSION', big: 'TARGET DOWN', sub: q.title });
+}
+
+/* ---------- mission stages ----------
+   A mission may have q.stages = [{ id, title, deadline }]. Ticking a stage logs a 'stage' entry
+   (Normal XP into the mission's target); ticking the last one also clears the mission. Like
+   everything else, progress lives in the journal — deleting the entry unticks the stage. */
+const STAGE_EFFORT = 'normal';
+const stagesOf = q => q && q.type === 'once' && Array.isArray(q.stages) ? q.stages : [];
+const stageDone = (q, s) => state.log.find(e => e.kind === 'stage' && e.questId === q.id && e.stageId === s.id);
+const nextStage = q => stagesOf(q).find(s => !stageDone(q, s));
+
+// 'on' / 'behind' for an open mission with stages and a deadline: stages done vs the share of time
+// gone since the mission was set, and whether the next stage's own deadline has passed.
+function missionPace(q) {
+  const st = stagesOf(q);
+  if (!st.length || !q.deadline || questCompletion(q)) return null;
+  const start = startOfDay(new Date(q.createdAt || Date.now())), end = parseKey(q.deadline), now = startOfDay();
+  const span = (end - start) / 86400000;
+  if (span <= 0) return null;
+  const share = Math.min(1, Math.max(0, (now - start) / 86400000 / span));
+  const doneN = st.filter(s => stageDone(q, s)).length;
+  const ns = nextStage(q);
+  const lateStage = ns && ns.deadline && daysUntil(ns.deadline) < 0;
+  return lateStage || doneN + 0.5 < share * st.length ? 'behind' : 'on';
+}
+
+function toggleStage(questId, stageId) {
+  const q = state.quests.find(x => x.id === questId);
+  const s = stagesOf(q).find(x => x.id === stageId);
+  if (!s) return;
+  const done = stageDone(q, s);
+  if (done) {
+    // unticking a stage also reopens the mission if it was cleared
+    const cleared = questCompletion(q);
+    state.log = state.log.filter(e => e !== done && e !== cleared);
+    persist(); sfx.back(); render();
+    return;
+  }
+  const I = intensity(STAGE_EFFORT);
+  const g = buildGains([q.target], I.xp);
+  commit({ kind: 'stage', questId: q.id, stageId: s.id, tg: [q.target], skills: g.skills, stats: g.stats, xp: g.xp || I.xp, intensity: I.id, note: `${q.title} — ${s.title}`, ...(g.bonus && { bonus: true }), ...(g.req && { req: dkey() }) });
+  if (!nextStage(q) && !questCompletion(q)) completeQuest(q);
+}
+
+// "D-3 · 11/26" style chip for a deadline
+function dueChip(deadline) {
+  const n = daysUntil(deadline);
+  return `<span class="chip ${n <= 2 ? 'hot' : ''}">${n < 0 ? `${-n}d overdue` : n === 0 ? 'due today' : `D-${n}`} · ${fmtMD(deadline)}</span>`;
 }
 
 /* ---------- focus timer ----------
@@ -786,6 +842,14 @@ function skillModal(id) {
   });
 }
 
+// One editable stage in the mission dialog; the hidden id keeps ticked stages ticked after edits.
+const stageEditRow = s => `<li>
+  <input name="stage-title" maxlength="80" value="${esc(s.title)}" placeholder="Next step" aria-label="Stage">
+  <input type="date" name="stage-deadline" value="${esc(s.deadline || '')}" aria-label="Stage deadline (optional)">
+  <input type="hidden" name="stage-id" value="${esc(s.id)}">
+  <button type="button" class="ic" data-rm aria-label="Remove stage" title="Remove stage">✕</button>
+</li>`;
+
 function questModal(id, presetType) {
   const q = id ? state.quests.find(x => x.id === id) : {
     title: '', type: presetType || 'daily', intensity: presetType === 'once' ? 'epic' : 'normal', deadline: '',
@@ -809,6 +873,10 @@ function questModal(id, presetType) {
         </div>
       </div>
       <label class="fld deadline-fld"><span>Deadline <i>(missions only, optional)</i></span><input type="date" name="deadline" value="${esc(q.deadline || '')}"></label>
+      <div class="fld stages-fld"><span>Stages <i>(optional — break the mission into steps; each pays +${intensity(STAGE_EFFORT).xp} XP)</i></span>
+        <ol class="stage-edit">${stagesOf(q).map(stageEditRow).join('')}</ol>
+        <button type="button" class="btn small ghost" id="add-stage">+ Add stage</button>
+      </div>
       <div class="m-actions">
         <button type="button" class="btn ghost" data-act="close-modal">Cancel</button>
         <button class="btn primary">Save</button>
@@ -818,9 +886,16 @@ function questModal(id, presetType) {
     const sync = () => {
       const type = new FormData(f).get('type');
       root.querySelector('.deadline-fld').classList.toggle('hidden', type !== 'once');
+      root.querySelector('.stages-fld').classList.toggle('hidden', type !== 'once');
       root.querySelector('.days-fld').classList.toggle('hidden', type !== 'daily');
     };
     f.addEventListener('change', sync); sync();
+    const list = root.querySelector('.stage-edit');
+    root.querySelector('#add-stage').onclick = () => {
+      list.insertAdjacentHTML('beforeend', stageEditRow({ id: '', title: '', deadline: '' }));
+      list.lastElementChild.querySelector('input').focus();
+    };
+    list.addEventListener('click', e => { if (e.target.closest('[data-rm]')) e.target.closest('li').remove(); });
     root.querySelectorAll('[data-days]').forEach(b => b.onclick = () => {
       const on = b.dataset.days.split(',');
       f.querySelectorAll('input[name=days]').forEach(c => { c.checked = on.includes(c.value); });
@@ -830,14 +905,22 @@ function questModal(id, presetType) {
       const fd = new FormData(f);
       const days = fd.getAll('days').map(Number);
       if (fd.get('type') === 'daily' && !days.length) { toast('NO DAYS', 'Pick at least one day'); return; }
+      const ids = fd.getAll('stage-id'), dls = fd.getAll('stage-deadline');
+      const stages = fd.getAll('stage-title').map((t, i) => ({ id: ids[i] || uid(), title: String(t).trim(), deadline: String(dls[i] || '') }))
+        .filter(s => s.title);
       const data = {
         title: String(fd.get('title')).trim(), type: fd.get('type'), target: fd.get('target'),
         intensity: fd.get('int'), deadline: fd.get('type') === 'once' ? String(fd.get('deadline') || '') : '',
         days: fd.get('type') === 'daily' && days.length < 7 ? days : undefined,
+        stages: fd.get('type') === 'once' && stages.length ? stages : undefined,
       };
-      if (id) Object.assign(q, data);
-      if (id && !data.days) delete q.days;
-      else state.quests.push({ id: uid(), createdAt: new Date().toISOString(), ...data });
+      if (id) {
+        Object.assign(q, data);
+        if (!data.days) delete q.days;
+        if (!data.stages) delete q.stages;
+      } else {
+        state.quests.push({ id: uid(), createdAt: new Date().toISOString(), ...data });
+      }
       persist(); closeModal(); sfx.ok(); render();
     };
   });
@@ -983,9 +1066,13 @@ function scrStatus() {
   let card;
   if (m) {
     const n = daysUntil(m.deadline);
+    const st = stagesOf(m), ns = nextStage(m), pace = missionPace(m);
+    const doneN = st.filter(s => stageDone(m, s)).length;
     card = `<section class="calling-card" data-act="go" data-id="quests">
       <div class="cc-kicker">TARGET</div>
       <div class="cc-title">${esc(m.title)}</div>
+      ${st.length ? `<div class="cc-stages">${bar(doneN / st.length)}<span>${doneN}/${st.length}${pace === 'behind' ? ' · BEHIND' : ''}</span></div>
+        ${ns ? `<div class="cc-next">NEXT: ${esc(ns.title)}${ns.deadline ? ` · ${fmtMD(ns.deadline)}` : ''}</div>` : ''}` : ''}
       <div class="cc-foot"><span>DEADLINE ${fmtMD(m.deadline)}</span>
         <span class="cc-days">${n < 0 ? `<b>${-n}</b> DAYS OVERDUE` : n === 0 ? '<b>!</b> TODAY' : `<b>${n}</b> DAY${n === 1 ? '' : 'S'} LEFT`}</span></div>
       ${missions.length > 1 ? `<div class="cc-more">+${missions.length - 1} more target${missions.length > 2 ? 's' : ''}</div>` : ''}
@@ -1075,14 +1162,28 @@ function questRow(q) {
   const t = targetInfo(q.target);
   const I = intensity(q.intensity);
   const streak = questStreak(q);
-  let dl = '';
-  if (q.type === 'once' && q.deadline && !done) {
-    const n = daysUntil(q.deadline);
-    dl = `<span class="chip ${n <= 2 ? 'hot' : ''}">${n < 0 ? `${-n}d overdue` : n === 0 ? 'due today' : `D-${n}`} · ${fmtMD(q.deadline)}</span>`;
-  }
+  const dl = q.type === 'once' && q.deadline && !done ? dueChip(q.deadline) : '';
   const sched = scheduleLabel(q);
   const rest = !done && !isScheduled(q);
-  return `<div class="quest ${done ? 'done' : ''} ${rest ? 'rest' : ''}">
+  const stages = stagesOf(q);
+  let stageBlock = '';
+  if (stages.length) {
+    const doneN = stages.filter(s => stageDone(q, s)).length;
+    const pace = missionPace(q);
+    stageBlock = `
+      <div class="ms-prog">${bar(doneN / stages.length)}<span>${doneN}/${stages.length} stages</span>
+        ${pace ? `<span class="chip pace-${pace}">${pace === 'on' ? '● on track' : '● behind'}</span>` : ''}</div>
+      ${done ? '' : `<ol class="ms-stages">${stages.map(s => {
+        const sd = stageDone(q, s);
+        return `<li class="${sd ? 'done' : ''}">
+          <button class="ms-check" data-act="toggle-stage" data-id="${q.id}" data-stage="${s.id}" aria-pressed="${!!sd}"
+            aria-label="${sd ? 'Undo' : 'Complete'} stage: ${esc(s.title)}" title="${sd ? 'Undo' : `Complete · +${intensity(STAGE_EFFORT).xp} XP`}"><i></i></button>
+          <span class="ms-title">${esc(s.title)}</span>
+          ${s.deadline && !sd ? dueChip(s.deadline) : sd ? `<span class="ms-when">${fmtMD(sd.date)}</span>` : ''}
+        </li>`;
+      }).join('')}</ol>`}`;
+  }
+  return `<div class="quest ${done ? 'done' : ''} ${rest ? 'rest' : ''} ${stages.length ? 'staged' : ''}">
     <button class="q-check" data-act="toggle-quest" data-id="${q.id}" title="${done ? 'Undo' : 'Complete'}"><i></i></button>
     <div class="q-body">
       <div class="q-title">${esc(q.title)}</div>
@@ -1091,6 +1192,7 @@ function questRow(q) {
         ${rest ? '<span class="chip rest">rest day</span>' : ''}
         ${streak ? `<span class="chip fire">🔥 ${streak}</span>` : ''}${dl}
         ${done && q.type === 'once' ? `<span class="chip ghost">cleared ${fmtMD(done.date)}</span>` : ''}</div>
+      ${stageBlock}
     </div>
     <div class="q-tools">
       <button class="ic" data-act="edit-quest" data-id="${q.id}" title="Edit">✎</button>
@@ -1148,7 +1250,7 @@ function scrConfidants() {
     : empty('No confidants yet.', 'Friends, family, mentors — the people you want to grow closer to. Each bond has 10 ranks.', 'add-conf', '+ Add your first confidant')}`;
 }
 
-const KIND_TAG = { activity: 'ACTION', quest: 'QUEST', hangout: 'BOND', review: 'VELVET' };
+const KIND_TAG = { activity: 'ACTION', quest: 'QUEST', stage: 'STAGE', hangout: 'BOND', review: 'VELVET' };
 const jItem = e => `
   <div class="j-item">
     <span class="j-time">${fmtTime(e.ts)}</span>
@@ -1201,20 +1303,25 @@ function journalCalendar() {
   const start = addDays(first, -((first.getDay() + 6) % 7));
   const today = dkey();
   const sel = calDay || today;
-  const deadlines = {};
-  for (const q of state.quests) if (q.type === 'once' && q.deadline) (deadlines[q.deadline] = deadlines[q.deadline] || []).push(q);
+  const deadlines = {}; // date → labels: mission deadlines and open stages' deadlines
+  const addDl = (k, label) => (deadlines[k] = deadlines[k] || []).push(label);
+  for (const q of state.quests) {
+    if (q.type !== 'once') continue;
+    if (q.deadline) addDl(q.deadline, q.title);
+    for (const s of stagesOf(q)) if (s.deadline && !stageDone(q, s)) addDl(s.deadline, `${s.title} (${q.title})`);
+  }
   let cells = '';
   for (let i = 0; i < 42; i++) {
     const dt = addDays(start, i), k = dkey(dt), xp = D.byDate[k] || 0;
     const lv = xp === 0 ? 0 : xp < 30 ? 1 : xp < 75 ? 2 : xp < 150 ? 3 : 4;
     const cond = state.conditions[k];
     const dl = deadlines[k] || [];
-    const tip = [`<b>${fmtMD(k)} ${DOW[dt.getDay()]}</b>`, `${xp} XP`, cond && condLabel(cond), ...dl.map(q => '◆ ' + esc(q.title))].filter(Boolean).join('<br>');
+    const tip = [`<b>${fmtMD(k)} ${DOW[dt.getDay()]}</b>`, `${xp} XP`, cond && condLabel(cond), ...dl.map(t => '◆ ' + esc(t))].filter(Boolean).join('<br>');
     cells += `<button class="cal-cell h${lv} ${dt.getMonth() !== first.getMonth() ? 'out' : ''} ${k === today ? 'today' : ''} ${k === sel ? 'sel' : ''}" data-act="cal-day" data-id="${k}" data-tip="${esc(tip)}">
       <span class="cc-n">${dt.getDate()}</span>
       ${cond ? `<i class="cc-cond c-${cond}"></i>` : ''}
       ${xp ? `<span class="cc-xp">${xp}</span>` : ''}
-      ${dl.length ? `<span class="cc-dl">◆ ${esc(dl[0].title)}</span>` : ''}
+      ${dl.length ? `<span class="cc-dl">◆ ${esc(dl[0])}</span>` : ''}
     </button>`;
   }
   const dayEntries = state.log.filter(e => e.date === sel).sort((a, b) => a.ts.localeCompare(b.ts));
@@ -1232,7 +1339,7 @@ function journalCalendar() {
     <section class="panel cal-day">
       <div class="tag">${sd.getMonth() + 1}/${sd.getDate()} · ${DOW[sd.getDay()]}</div>
       <div class="cd-sum"><b>+${D.byDate[sel] || 0} XP</b>${sc ? `<span class="cond-chip c-${sc}">${condLabel(sc)}</span>` : ''}</div>
-      ${(deadlines[sel] || []).map(q => `<div class="cd-dl">◆ Deadline: ${esc(q.title)}</div>`).join('')}
+      ${(deadlines[sel] || []).map(t => `<div class="cd-dl">◆ Deadline: ${esc(t)}</div>`).join('')}
       <div class="j-items">${dayEntries.length ? dayEntries.map(jItem).join('') : '<div class="muted pad">Nothing logged this day.</div>'}</div>
     </section>
   </div>`;
@@ -1480,6 +1587,16 @@ function igorLines(wk, W, P, rev) {
     const due = state.quests.filter(q => q.type === 'once' && q.deadline && !questCompletion(q))
       .map(q => [q, daysUntil(q.deadline)]).filter(([, n]) => n >= 0 && n <= 10).sort((a, b2) => a[1] - b2[1])[0];
     if (due) L.push(`A deadline approaches: ${b(due[0].title)}, ${due[1] === 0 ? 'today' : `in ${due[1]} day${due[1] === 1 ? '' : 's'}`}.`);
+    // the open mission whose next stage is due soonest (or already late)
+    const step = state.quests.filter(q => !questCompletion(q) && nextStage(q)?.deadline)
+      .map(q => [q, nextStage(q), daysUntil(nextStage(q).deadline)]).filter(([, , n]) => n <= 7).sort((a, b2) => a[2] - b2[2])[0];
+    if (step) {
+      const [q, s, n] = step;
+      L.push(n < 0 ? `${b(s.title)} — a step toward ${b(q.title)} — is ${-n} day${n === -1 ? '' : 's'} late. The path does not walk itself.`
+        : `Your next step toward ${b(q.title)}: ${b(s.title)}, ${n === 0 ? 'due today' : `due in ${n} day${n === 1 ? '' : 's'}`}.`);
+    }
+    const behind = state.quests.find(q => missionPace(q) === 'behind');
+    if (behind && !step) L.push(`${b(behind.title)} has fallen behind its pace. Perhaps the next step is smaller than you fear.`);
   }
 
   const ci = conditionInsight();
@@ -1786,6 +1903,7 @@ function compendiumCtx() {
     confR: state.confidants.map(c => confRank(d.confPts[c.id] || 0).rank),
     streak: longestStreak(),
     missions: state.quests.filter(q => q.type === 'once' && questCompletion(q)).length,
+    bigMissions: state.quests.filter(q => stagesOf(q).length >= 5 && questCompletion(q)).length,
     reviews: Object.keys(state.reviews).length,
     maxDay: Math.max(0, ...Object.values(d.byDate)),
     epic: state.log.some(e => e.intensity === 'epic'),
@@ -1820,6 +1938,7 @@ const PERSONAS = [
   ['pyrojack', 'Pyro Jack', 'Magician', 'Log 200 actions', c => c.actions >= 200],
   ['robinhood', 'Robin Hood', 'Justice', 'Keep a 30-day streak', c => c.streak >= 30],
   ['blackfrost', 'Black Frost', 'Fool', 'Clear 5 missions', c => c.missions >= 5],
+  ['anubis', 'Anubis', 'Judgement', 'Clear a mission with 5+ stages', c => c.bigMissions >= 1],
   ['ardha', 'Ardha', 'Temperance', 'Clear 20 Mementos requests', c => c.requests >= 20],
   ['thanatos', 'Thanatos', 'Death', 'Seal 10 Velvet contracts', c => c.reviews >= 10],
   ['kaguya', 'Kaguya', 'Moon', 'Max out a confidant (rank 10)', c => c.confR.some(r => r >= 10)],
@@ -2191,6 +2310,7 @@ const ACTIONS = {
   'modal-back': (ds, el, e) => { if (e.target === el) closeModal(); },
   'close-rankup': () => closeRankUp(),
   'toggle-quest': ds => toggleQuest(ds.id),
+  'toggle-stage': ds => toggleStage(ds.id, ds.stage),
   'add-skill': () => skillModal(),
   'edit-skill': ds => skillModal(ds.id),
   'del-skill': async ds => {
@@ -2389,7 +2509,17 @@ window.__seedDemo = () => {
     { id: uid(), name: 'Ryuji', arcana: 'Chariot', stat: 'guts', notes: 'Gym buddy. Loves ramen.', createdAt: new Date().toISOString() },
     { id: uid(), name: 'Mom', arcana: 'Empress', stat: 'kindness', notes: 'Call on Sundays.', createdAt: new Date().toISOString() },
   );
-  state.quests.push({ id: uid(), title: 'Pass the CKA exam', type: 'once', target: 'skill:' + state.skills[0].id, intensity: 'epic', deadline: dkey(addDays(new Date(), 11)), createdAt: new Date().toISOString() });
+  const cka = {
+    id: uid(), title: 'Pass the CKA exam', type: 'once', target: 'skill:' + state.skills[0].id, intensity: 'epic',
+    deadline: dkey(addDays(new Date(), 11)), createdAt: addDays(new Date(), -24).toISOString(),
+    stages: [['Kubernetes basics course', -12], ['Practice cluster at home', -5], ['Mock exam #1', -1], ['Mock exam #2', 5], ['Book the exam', 8]]
+      .map(([title, d]) => ({ id: uid(), title, deadline: dkey(addDays(new Date(), d)) })),
+  };
+  state.quests.push(cka);
+  cka.stages.slice(0, 3).forEach((s, i) => {
+    const dt = addDays(new Date(), [-13, -6, -2][i]);
+    state.log.push({ id: uid(), ts: dt.toISOString(), date: dkey(dt), kind: 'stage', questId: cka.id, stageId: s.id, ...targetInfo(cka.target), xp: 25, statPts: 5, intensity: 'normal', note: `${cka.title} — ${s.title}` });
+  });
   for (let day = 120; day >= 0; day--) {
     if (Math.random() < 0.25) continue;
     const dt = addDays(new Date(), -day);
