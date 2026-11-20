@@ -706,6 +706,20 @@ kbd {
 .toast b { font: italic 900 26px/1 var(--display); color: var(--red); padding-left: 6px; }
 .toast span { font: italic 800 14px var(--display); text-transform: uppercase; letter-spacing: .5px; }
 .toast.out { transform: translateX(120%) skewX(-20deg); opacity: 0; }
+/* toasts with a button (Undo) sit above rank-up popups and take clicks */
+#toasts { z-index: 250; }
+.toast.has-action { pointer-events: auto; }
+.toast-act {
+  margin-left: 6px; padding: 4px 12px; border: 2px solid var(--black); background: var(--black); color: var(--white);
+  font: italic 900 13px var(--display); letter-spacing: 1px; text-transform: uppercase; transform: skewX(-10deg);
+}
+.toast-act:hover, .toast-act:focus-visible { background: var(--red); border-color: var(--red); color: var(--on-red); outline: none; }
+
+/* Take Action: when it happened */
+.when-row { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+.when-row .seg { flex: 1; min-width: 300px; }
+.when-date { background: var(--ink); color: var(--white); border: 2px solid #444; padding: 6px 10px; font: 600 14px var(--body); color-scheme: dark; }
+.when-date:focus { border-color: var(--white); box-shadow: 4px 4px 0 var(--red); outline: none; }
 @keyframes toastIn { from { transform: translateX(120%) skewX(-20deg); } }
 
 /* ---------- rank up ---------- */
