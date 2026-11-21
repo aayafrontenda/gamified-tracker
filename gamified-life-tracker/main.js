@@ -14,6 +14,8 @@ const TOAST_CLSID = '{482CAAF0-BF9F-4558-8EFB-FE741FC19CD3}';
 app.setName('Phantom Life');
 // Dev/testing hook: point the save at a throwaway folder.
 if (process.env.PL_USERDATA) app.setPath('userData', process.env.PL_USERDATA);
+// Tests pin the system language (Chromium's --lang) so "System language" means the same everywhere.
+if (process.env.PL_LANG) app.commandLine.appendSwitch('lang', process.env.PL_LANG);
 
 // Test runs (screenshots / eval) skip hotkeys, reminders and login items.
 const TEST = !!(process.env.PL_SHOT || process.env.PL_EVAL || process.env.PL_HIDDEN);
@@ -122,7 +124,7 @@ ipcMain.handle('export', async (_e, data) => {
   const stamp = new Date().toISOString().slice(0, 10);
   const { canceled, filePath } = await dialog.showSaveDialog({
     defaultPath: path.join(app.getPath('documents'), `phantom-life-${stamp}.json`),
-    filters: [{ name: 'Save file', extensions: ['json'] }],
+    filters: [{ name: t('Save file'), extensions: ['json'] }],
   });
   if (canceled || !filePath) return false;
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
@@ -132,7 +134,7 @@ ipcMain.handle('export', async (_e, data) => {
 ipcMain.handle('import', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     properties: ['openFile'],
-    filters: [{ name: 'Save file', extensions: ['json'] }],
+    filters: [{ name: t('Save file'), extensions: ['json'] }],
   });
   if (canceled || !filePaths[0]) return null;
   return JSON.parse(fs.readFileSync(filePaths[0], 'utf8'));
@@ -202,7 +204,7 @@ ipcMain.handle('week-card', async (_e, html, mode, name) => {
   }
   const { canceled, filePath } = await dialog.showSaveDialog(mainWin || undefined, {
     defaultPath: path.join(app.getPath('pictures'), String(name || 'phantom-life-week.png').replace(/[\\/:*?"<>|]/g, '-')),
-    filters: [{ name: 'PNG image', extensions: ['png'] }],
+    filters: [{ name: t('PNG image'), extensions: ['png'] }],
   });
   if (canceled || !filePath) return false;
   fs.writeFileSync(filePath, img.toPNG());
@@ -325,6 +327,26 @@ function applyHotkey(on) {
   return globalShortcut.isRegistered(HOTKEY);
 }
 
+/* ---------- language of the tray, notifications and dialogs ----------
+   The renderer reports the interface language (see i18n.js); until it does — started at login with
+   no window — the save's setting decides, or the system's for "auto". */
+let uiLang = null;
+function lang() {
+  if (uiLang) return uiLang;
+  const pref = ((readSave() || {}).settings || {}).lang;
+  return pref === 'en' || pref === 'ru' ? pref : app.getLocale().toLowerCase().startsWith('ru') ? 'ru' : 'en';
+}
+const RU = {
+  'Stop timer': 'Остановить таймер', 'Open Phantom Life': 'Открыть Phantom Life', 'Take action': 'Действовать', Quit: 'Выйти',
+  ' (paused)': ' (пауза)', 'Save file': 'Файл сохранения', 'PNG image': 'Изображение PNG', Morgana: 'Моргана', Igor: 'Игорь',
+};
+const t = s => (lang() === 'ru' && RU[s]) || s;
+ipcMain.on('lang', (_e, l) => {
+  if (l === uiLang) return;
+  uiLang = l === 'ru' ? 'ru' : 'en';
+  refreshTray();
+});
+
 /* ---------- tray (Windows/Linux): keeps the app alive with the window closed ---------- */
 let tray = null;
 function createTray() {
@@ -339,13 +361,13 @@ function refreshTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     ...(timer ? [
       { label: timerText(), enabled: false },
-      { label: 'Stop timer', click: () => sendToRenderer('timer-stop') },
+      { label: t('Stop timer'), click: () => sendToRenderer('timer-stop') },
       { type: 'separator' },
     ] : []),
-    { label: 'Open Phantom Life', click: () => showWindow() },
-    { label: 'Take action', click: () => sendToRenderer('quick-log') },
+    { label: t('Open Phantom Life'), click: () => showWindow() },
+    { label: t('Take action'), click: () => sendToRenderer('quick-log') },
     { type: 'separator' },
-    { label: 'Quit', click: () => app.quit() },
+    { label: t('Quit'), click: () => app.quit() },
   ]));
 }
 
@@ -360,7 +382,7 @@ const timerRunning = () => !!timer && !timer.pausedAt;
 function timerText() {
   const end = timer.pausedAt ? Date.parse(timer.pausedAt) : Date.now();
   const min = Math.max(0, Math.floor((end - Date.parse(timer.startedAt) - (timer.pausedMs || 0)) / 60000));
-  return `${timer.label} — ${Math.floor(min / 60)}:${pad(min % 60)}${timer.pausedAt ? ' (paused)' : ''}`;
+  return `${timer.label} — ${Math.floor(min / 60)}:${pad(min % 60)}${timer.pausedAt ? t(' (paused)') : ''}`;
 }
 ipcMain.on('timer', (_e, t) => {
   const changed = JSON.stringify(t) !== JSON.stringify(timer);
@@ -374,7 +396,9 @@ function reportAway(from, to) {
   if (!timerRunning() || to - from < AWAY_MS) return;
   if (mainWin) { mainWin.webContents.send('timer-away', { from, to }); return; }
   pendingAway = { from, to };
-  notify('Morgana', `Your ${timer.label} timer kept running while you were away (${Math.round((to - from) / 60000)} min).`, 'status');
+  const min = Math.round((to - from) / 60000);
+  notify(t('Morgana'), lang() === 'ru' ? `Таймер «${timer.label}» продолжал идти, пока тебя не было (${min} мин).`
+    : `Your ${timer.label} timer kept running while you were away (${min} min).`, 'status');
 }
 function checkAway() {
   if (!timerRunning()) { awaySince = null; return; }
@@ -443,15 +467,24 @@ function remind(kind, force = false) {
     const left = pendingDailies(save, now);
     if (!left.length && !force) return;
     const list = left.slice(0, 3).map(q => q.title).join(', ') + (left.length > 3 ? '…' : '');
-    return notify('Morgana', left.length ? pick([
+    const ru = lang() === 'ru';
+    return notify(t('Morgana'), left.length ? pick(ru ? [
+      `Эй, ${name}! Ежедневных квестов осталось: ${left.length} — ${list}.`,
+      `Не расслабляйся! Ещё не сделано: ${list}.`,
+      `Мррр… день почти закончился, а в списке всё ещё: ${list}.`,
+    ] : [
       `Hey ${name}! You've still got ${left.length} daily quest${left.length > 1 ? 's' : ''}: ${list}.`,
       `Don't slack off now! ${list} still need${left.length > 1 ? '' : 's'} doing.`,
       `Mrrrow… the day's almost over and ${list} ${left.length > 1 ? "aren't" : "isn't"} done.`,
-    ]) : `All dailies cleared today. Not bad, ${name}!`, 'quests');
+    ]) : ru ? `Все ежедневные на сегодня выполнены. Неплохо, ${name}!` : `All dailies cleared today. Not bad, ${name}!`, 'quests');
   }
   if (kind === 'bed' && due(st.remindBed, st.bedAt || '23:30')) {
     fired[kind] = today;
-    notify('Morgana', pick([
+    notify(t('Morgana'), pick(lang() === 'ru' ? [
+      `Пора спать, ${name}.`,
+      'Уже поздно. Давай на сегодня закончим.',
+      'Тебе стоит отдохнуть. Завтра большой день.',
+    ] : [
       `Let's go to sleep, ${name}.`,
       "It's getting late. Let's call it a day.",
       'You should get some rest. Big day tomorrow.',
@@ -460,7 +493,8 @@ function remind(kind, force = false) {
   if (kind === 'velvet' && now.getDay() === 0 && due(st.remindVelvet, '19:00')) {
     fired[kind] = today;
     if ((save.reviews || {})[weekKey(now)]) return;
-    notify('Igor', 'Welcome to the Velvet Room… The week draws to a close. Come, let us appraise it.', 'velvet');
+    notify(t('Igor'), lang() === 'ru' ? 'Добро пожаловать в Бархатную комнату… Неделя подходит к концу. Давай подведём её итоги.'
+      : 'Welcome to the Velvet Room… The week draws to a close. Come, let us appraise it.', 'velvet');
   }
 }
 const checkReminders = () => ['dailies', 'bed', 'velvet'].forEach(k => remind(k));

@@ -52,6 +52,8 @@ Runs on **macOS** and **Windows**. Everything stays on your computer: no account
 - **Condition**: log how you feel each day and see how it affects your output.
 - **Journal**: edit an entry (✎) to fix what it trained, the effort, the day or the note, or delete it to undo
   it — every level and rank is recalculated from the history.
+- **English and Russian**: follows the system language; switch on the title screen or in System. Tray menu and
+  reminders follow too.
 
 **Keys:** `1`–`8` switch screens · `L` take action · `⌘⇧L` / `Ctrl+Shift+L` take action from any app ·
 `⌘,` / `Ctrl+,` settings · `⌘↵` / `Ctrl+Enter` submit · `Esc` close.
