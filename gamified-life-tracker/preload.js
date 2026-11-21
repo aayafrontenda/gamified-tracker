@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('api', {
   onGo: cb => ipcRenderer.on('go', (_e, screen) => cb(screen)),
   onMorgana: cb => ipcRenderer.on('morgana', (_e, msg) => cb(msg)),
   timerChanged: timer => ipcRenderer.send('timer', timer),
+  setLang: lang => ipcRenderer.send('lang', lang),
+  weekCard: (html, mode, name) => ipcRenderer.invoke('week-card', html, mode, name),
   pendingAway: () => ipcRenderer.invoke('pending-away'),
   onTimerStop: cb => ipcRenderer.on('timer-stop', () => cb()),
   onTimerAway: cb => ipcRenderer.on('timer-away', (_e, away) => cb(away)),

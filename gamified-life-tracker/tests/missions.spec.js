@@ -30,7 +30,13 @@ const mission = id => page.evaluate(id => {
   return { done: stagesOf(q).filter(s => stageDone(q, s)).length, cleared: !!questCompletion(q), pace: missionPace(q) };
 }, id);
 const stageBtn = (i, name = 'Step ' + (i + 1)) => page.getByRole('button', { name: new RegExp(`stage: ${name}$`) });
-const dismissPopups = async () => { while (await page.locator('#rankup-root > *').count()) await page.keyboard.press('Escape'); };
+// The next queued popup shows 120 ms after one closes (e.g. a persona for clearing today's Mementos request).
+const dismissPopups = async () => {
+  while (await page.evaluate(() => !!document.querySelector('#rankup-root > *') || rankQueue.length > 0)) {
+    if (await page.locator('#rankup-root > *').count()) await page.keyboard.press('Escape');
+    else await page.waitForTimeout(50);
+  }
+};
 
 test('creates a mission with stages from the quest dialog', async () => {
   await page.keyboard.press('3');

@@ -42,14 +42,18 @@ Runs on **macOS** and **Windows**. Everything stays on your computer: no account
   grows their stat and can also train skills. One meeting can include several confidants.
 - **Velvet Room**: Igor reviews your week (XP pace, stat growth, neglected skills, distant confidants,
   upcoming deadlines). Grade the week, reflect, and seal a contract (+50 XP) choosing up to 3
-  **focus skills** that earn ×1.5 XP the following week.
+  **focus skills** that earn ×1.5 XP the following week. **Share week** turns any week into a
+  1080×1080 card — copy it to the clipboard or save a PNG. It shows numbers only; your notes stay private.
 - **Shop**: every XP also pays ¥10. Define your own rewards and buy them with what you earned.
 - **Morgana**: notifications for unfinished dailies, bedtime and the Sunday Velvet Room. They keep
   working with the window closed.
 - **Compendium**: 29 personas that awaken at milestones (streaks, ranks, missions, contracts…).
 - **Mementos requests**: each day a neglected skill is picked — the first action on it earns ×2 XP.
 - **Condition**: log how you feel each day and see how it affects your output.
-- **Journal**: delete an entry to undo it — every level and rank is recalculated from the history.
+- **Journal**: edit an entry (✎) to fix what it trained, the effort, the day or the note, or delete it to undo
+  it — every level and rank is recalculated from the history.
+- **English and Russian**: follows the system language; switch on the title screen or in System. Tray menu and
+  reminders follow too.
 
 **Keys:** `1`–`8` switch screens · `L` take action · `⌘⇧L` / `Ctrl+Shift+L` take action from any app ·
 `⌘,` / `Ctrl+,` settings · `⌘↵` / `Ctrl+Enter` submit · `Esc` close.

@@ -7,22 +7,25 @@
    ========================================================= */
 
 /* ---------- rules ---------- */
+// Names are English keys translated when read (see i18n.js), so switching language needs no reload.
+const statDef = (name, ranks) => ({ get name() { return tr(name); }, get ranks() { return ranks.map(r => tr(r)); } });
 const STATS = {
-  knowledge:   { name: 'Knowledge',   ranks: ['Oblivious', 'Learned', 'Scholarly', 'Encyclopedic', 'Erudite'] },
-  guts:        { name: 'Guts',        ranks: ['Milquetoast', 'Bold', 'Staunch', 'Dauntless', 'Lionhearted'] },
-  proficiency: { name: 'Proficiency', ranks: ['Bumbling', 'Decent', 'Skilled', 'Masterful', 'Transcendent'] },
-  kindness:    { name: 'Kindness',    ranks: ['Inoffensive', 'Considerate', 'Empathetic', 'Selfless', 'Angelic'] },
-  charm:       { name: 'Charm',       ranks: ['Existent', 'Head-Turning', 'Suave', 'Charismatic', 'Debonair'] },
+  knowledge:   statDef('Knowledge',   ['Oblivious', 'Learned', 'Scholarly', 'Encyclopedic', 'Erudite']),
+  guts:        statDef('Guts',        ['Milquetoast', 'Bold', 'Staunch', 'Dauntless', 'Lionhearted']),
+  proficiency: statDef('Proficiency', ['Bumbling', 'Decent', 'Skilled', 'Masterful', 'Transcendent']),
+  kindness:    statDef('Kindness',    ['Inoffensive', 'Considerate', 'Empathetic', 'Selfless', 'Angelic']),
+  charm:       statDef('Charm',       ['Existent', 'Head-Turning', 'Suave', 'Charismatic', 'Debonair']),
 };
 const STAT_ORDER = ['knowledge', 'guts', 'proficiency', 'kindness', 'charm'];
 const STAT_T = [0, 40, 120, 280, 560];               // cumulative points for ranks 1..5
 const CONF_T = [0, 3, 7, 12, 18, 25, 33, 42, 52, 63]; // cumulative points for confidant ranks 1..10
 
+const intDef = (id, label, xp, cpts, hint) => ({ id, xp, cpts, get label() { return tr(label); }, get hint() { return tr(hint); } });
 const INTENSITY = [
-  { id: 'light',  label: 'Light',  xp: 10,  cpts: 1, hint: '~15 min' },
-  { id: 'normal', label: 'Normal', xp: 25,  cpts: 2, hint: '~45 min' },
-  { id: 'heavy',  label: 'Heavy',  xp: 50,  cpts: 3, hint: '~2 hours' },
-  { id: 'epic',   label: 'Epic',   xp: 100, cpts: 5, hint: 'a major win' },
+  intDef('light',  'Light',  10,  1, '~15 min'),
+  intDef('normal', 'Normal', 25,  2, '~45 min'),
+  intDef('heavy',  'Heavy',  50,  3, '~2 hours'),
+  intDef('epic',   'Epic',   100, 5, 'a major win'),
 ];
 const intensity = id => INTENSITY.find(x => x.id === id) || INTENSITY[1];
 const statPtsFor = xp => Math.round(xp / 5);
@@ -49,16 +52,17 @@ const QUOTES = [
 ];
 
 const MENU = () => SCREENS.filter(s => s.menu !== false);
+const scrDef = (id, label, sub, menu = true) => ({ id, menu, get label() { return tr(label); }, get sub() { return tr(sub); } });
 const SCREENS = [
-  { id: 'status',     label: 'Status',     sub: 'Who you are today' },
-  { id: 'skills',     label: 'Skills',     sub: 'Grind what matters' },
-  { id: 'quests',     label: 'Quests',     sub: 'Habits & missions' },
-  { id: 'confidants', label: 'Confidants', sub: 'The bonds that make you' },
-  { id: 'journal',    label: 'Journal',    sub: 'Every step you took' },
-  { id: 'compendium', label: 'Compendium', sub: 'Every self you have awakened' },
-  { id: 'velvet',     label: 'Velvet Room', sub: 'Your weekly appraisal' },
-  { id: 'shop',       label: 'Shop',       sub: 'Treat yourself — you earned it' },
-  { id: 'system',     label: 'System',     sub: 'Save, load, config', menu: false },
+  scrDef('status',     'Status',      'Who you are today'),
+  scrDef('skills',     'Skills',      'Grind what matters'),
+  scrDef('quests',     'Quests',      'Habits & missions'),
+  scrDef('confidants', 'Confidants',  'The bonds that make you'),
+  scrDef('journal',    'Journal',     'Every step you took'),
+  scrDef('compendium', 'Compendium',  'Every self you have awakened'),
+  scrDef('velvet',     'Velvet Room', 'Your weekly appraisal'),
+  scrDef('shop',       'Shop',        'Treat yourself — you earned it'),
+  scrDef('system',     'System',      'Save, load, config', false),
 ];
 
 /* ---------- platform ---------- */
@@ -69,12 +73,15 @@ const KEY = IS_MAC
   ? { submit: '⌘↵', hotkey: '⌘⇧L', system: '⌘,' }
   : { submit: 'Ctrl+Enter', hotkey: 'Ctrl+Shift+L', system: 'Ctrl+,' };
 const modKey = e => IS_MAC ? e.metaKey : e.ctrlKey;
-const OS = IS_MAC
-  ? { bg: 'in the Dock', fileMgr: 'Finder', quit: '<kbd>⌘Q</kbd> stops it', notifSettings: 'macOS blocked them — System Settings → Notifications' }
-  : {
-      bg: 'in the tray', fileMgr: IS_WIN ? 'Explorer' : 'file manager', quit: 'it waits in the tray — Quit from the tray icon stops it',
-      notifSettings: IS_WIN ? 'Windows blocked them — Settings → System → Notifications' : 'Notifications are blocked by the system',
-    };
+const OS = {
+  get bg() { return tr(IS_MAC ? 'in the Dock' : 'in the tray'); },
+  get fileMgr() { return IS_MAC ? 'Finder' : tr(IS_WIN ? 'Explorer' : 'file manager'); },
+  get quit() { return IS_MAC ? tr('<kbd>⌘Q</kbd> stops it') : tr('it waits in the tray — Quit from the tray icon stops it'); },
+  get notifSettings() {
+    return tr(IS_MAC ? 'macOS blocked them — System Settings → Notifications'
+      : IS_WIN ? 'Windows blocked them — Settings → System → Notifications' : 'Notifications are blocked by the system');
+  },
+};
 
 /* ---------- utils ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -87,19 +94,15 @@ const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); r
 const startOfDay = (d = new Date()) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 const weekKey = d => dkey(addDays(startOfDay(d), -((d.getDay() + 6) % 7))); // Monday
 const daysUntil = key => Math.round((parseKey(key) - startOfDay()) / 86400000);
-const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const fmtMD = key => { const d = parseKey(key); return `${d.getMonth() + 1}/${d.getDate()}`; };
+// Weekday and month names, M/D vs D.MM: per language, from i18n.js.
+const dow = i => LOC().dow[i];
+const fmtDate = d => LANG === 'ru' ? `${d.getDate()}.${pad(d.getMonth() + 1)}` : `${d.getMonth() + 1}/${d.getDate()}`;
+const fmtMD = key => fmtDate(parseKey(key));
 const fmtTime = iso => { const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
 function timeOfDay(h) {
-  if (h < 5) return 'Late Night';
-  if (h < 8) return 'Early Morning';
-  if (h < 12) return 'Morning';
-  if (h < 13) return 'Lunchtime';
-  if (h < 16) return 'Afternoon';
-  if (h < 18) return 'After School';
-  if (h < 22) return 'Evening';
-  return 'Late Night';
+  return tr(h < 5 ? 'Late Night' : h < 8 ? 'Early Morning' : h < 12 ? 'Morning' : h < 13 ? 'Lunchtime'
+    : h < 16 ? 'Afternoon' : h < 18 ? 'After School' : h < 22 ? 'Evening' : 'Late Night');
 }
 
 // Ransom-note lettering, deterministic per seed so it doesn't flicker on re-render.
@@ -189,7 +192,7 @@ function levelFrom(xp, base, step, max = 99) {
 }
 const skillLevel = xp => levelFrom(xp, 50, 25);
 const playerLevel = xp => levelFrom(xp, 100, 50);
-const titleFor = lvl => [...TITLES].reverse().find(([l]) => lvl >= l)[1];
+const titleFor = lvl => tr([...TITLES].reverse().find(([l]) => lvl >= l)[1]);
 
 function rankFrom(pts, T) {
   let r = 0;
@@ -213,6 +216,11 @@ function reward(name, price, icon, once = false) {
 const newSkill = (name, icon, stat) => ({ id: uid(), name, icon, stat, createdAt: new Date().toISOString() });
 const newQuest = (title, type, target, inten) => ({ id: uid(), title, type, target, intensity: inten, deadline: '', createdAt: new Date().toISOString() });
 
+const DEFAULT_REWARDS = [
+  ['Episode of anime / a series', 300, 'monitor'], ['1 hour of gaming', 500, 'gamepad'], ['Cheat meal', 1000, 'utensils'],
+  ['Order food delivery', 1500, 'flame'], ['New piece of clothing', 8000, 'shirt', true],
+];
+
 // A blank game: no skills or quests yet — character creation (new game section) fills them in.
 function defaultState() {
   return {
@@ -222,13 +230,7 @@ function defaultState() {
       sound: true, hotkey: true, openAtLogin: false,
       remindDailies: true, dailiesAt: '21:00', remindBed: true, bedAt: '23:30', remindVelvet: true,
     },
-    rewards: [
-      reward('Episode of anime / a series', 300, 'monitor'),
-      reward('1 hour of gaming', 500, 'gamepad'),
-      reward('Cheat meal', 1000, 'utensils'),
-      reward('Order food delivery', 1500, 'flame'),
-      reward('New piece of clothing', 8000, 'shirt', true),
-    ],
+    rewards: DEFAULT_REWARDS.map(([name, price, icon, once]) => reward(tr(name), price, icon, once)),
     purchases: [],
     reviews: {},
     conditions: {},
@@ -261,6 +263,53 @@ function sampleState() {
     newQuest('Call family', 'weekly', 'stat:kindness', 'normal'),
   ];
   return s;
+}
+
+/* ---------- built-in names follow the language ----------
+   Names the game itself wrote into the save — life areas and their suggested quests, the default
+   rewards, the sample character — switch with the interface language, in either direction. What the
+   player typed or renamed stays as typed. Journal entries of quests carry the quest's title as their
+   note, so those follow too; contract entries get their note rebuilt. */
+let builtinNames = null;
+function localizeState() {
+  if (!state) return false;
+  builtinNames = builtinNames || new Set([
+    ...LIFE_AREAS.flatMap(a => [a.name, ...a.quests.map(q => q[0])]),
+    ...DEFAULT_REWARDS.map(r => r[0]),
+    'Sports', 'Work out', 'Push a commit on a side project',
+  ]);
+  const toEn = {};
+  for (const en of builtinNames) if (RU[en]) toEn[RU[en]] = en;
+  let changed = false;
+  const loc = name => {
+    const en = toEn[name] || name;
+    if (!builtinNames.has(en)) return name;
+    const out = tr(en);
+    if (out !== name) changed = true;
+    return out;
+  };
+  for (const s of state.skills) s.name = loc(s.name);
+  for (const q of state.quests) q.title = loc(q.title);
+  for (const r of state.rewards) r.name = loc(r.name);
+  for (const p of state.purchases) p.name = loc(p.name);
+  for (const e of state.log) {
+    if (e.kind === 'quest' && e.note) e.note = loc(e.note);
+    if (e.kind === 'review' && e.week) {
+      const note = tr('Weekly contract · week of {date}', { date: fmtMD(e.week) });
+      if (e.note !== note) { e.note = note; changed = true; }
+    }
+  }
+  if (state.timer) {
+    const label = state.timer.label.split(' + ').map(loc).join(' + ');
+    state.timer.label = label;
+  }
+  return changed;
+}
+// Switch the interface language and bring the save's built-in names along (nothing is saved during
+// character creation, which persists only on Start).
+function applyLanguage(save = true) {
+  applyLang();
+  if (localizeState() && save && !ng) persist();
 }
 
 const obj = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
@@ -328,18 +377,18 @@ function targetInfo(target) {
     if (s) return { skillId: s.id, stat: s.stat, label: s.name, icon: skillIcon(s) };
   }
   if (kind === 'stat' && STATS[id]) return { skillId: null, stat: id, label: STATS[id].name, icon: iconSvg('star') };
-  return { skillId: null, stat: null, label: 'Unknown', icon: '' };
+  return { skillId: null, stat: null, label: tr('Unknown'), icon: '' };
 }
 
 function entryLabel(e) {
-  if (e.kind === 'review') return 'Velvet Room';
+  if (e.kind === 'review') return tr('Velvet Room');
   const names = entryTargets(e).map(t => {
     const [k, id] = t.split(':');
-    return k === 'skill' ? (skillById(id)?.name || 'Deleted skill') : STATS[id]?.name;
+    return k === 'skill' ? (skillById(id)?.name || tr('Deleted skill')) : STATS[id]?.name;
   }).filter(Boolean);
   const confs = entryConfs(e);
   if (confs.length) {
-    const who = confs.map(id => confById(id)?.name || 'Former confidant').join(' & ');
+    const who = confs.map(id => confById(id)?.name || tr('Former confidant')).join(' & ');
     return [who, ...names].join(' · ');
   }
   return names.join(' + ') || '—';
@@ -358,11 +407,15 @@ const statsText = (e, short) => Object.entries(entryStats(e)).filter(([k, v]) =>
 // Every chosen skill gets the full XP (focus skills ×1.5). Each social stat gets points once,
 // even when several chosen skills feed it. The player earns the action's XP once.
 // day: the date the action happened (logging an earlier day uses that week's focus skills and
-// never earns today's Mementos request).
-function buildGains(targets, baseXp, day = dkey()) {
+// never earns today's Mementos request). reqSkill: the skill whose Mementos ×2 applies — by default
+// today's open request; editing an entry passes the one it already earned (or null).
+function buildGains(targets, baseXp, day = dkey(), reqSkill) {
   const skills = {}, stats = {};
   let top = 0, bonus = false, req = false;
-  const rq = day === dkey() ? todaysRequest() : null;
+  if (reqSkill === undefined) {
+    const rq = day === dkey() ? todaysRequest() : null;
+    reqSkill = rq && !rq.done ? rq.skillId : null;
+  }
   for (const t of new Set(targets)) {
     const [kind, id] = String(t).split(':');
     if (kind === 'skill') {
@@ -370,7 +423,7 @@ function buildGains(targets, baseXp, day = dkey()) {
       if (!s) continue;
       const focus = focusSkills(parseKey(day)).includes(id);
       let xp = focus ? Math.round(baseXp * FOCUS_MULT) : baseXp;
-      if (rq && !rq.done && rq.skillId === id) { xp *= 2; req = true; } // Mementos request
+      if (reqSkill && reqSkill === id) { xp *= 2; req = true; } // Mementos request
       bonus = bonus || focus;
       skills[id] = xp;
       stats[s.stat] = Math.max(stats[s.stat] || 0, statPtsFor(xp));
@@ -393,9 +446,9 @@ function commit(entry) {
   sfx.ok();
   const label = entryLabel(e);
   const st = statsText(e);
-  const when = e.date === dkey() ? '' : e.date === dkey(addDays(new Date(), -1)) ? ' · yesterday' : ` · ${fmtMD(e.date)}`;
-  toast(`+${e.xp} XP`, `${label}${when}${e.req ? ' · REQUEST ×2' : ''}${e.bonus ? ' · FOCUS ×1.5' : ''}${st ? ' · ' + st : ''} · +${fmtYen(e.xp * YEN_PER_XP)}`,
-    { label: 'Undo', fn: () => undoEntry(e.id) });
+  const when = e.date === dkey() ? '' : e.date === dkey(addDays(new Date(), -1)) ? ' · ' + tr('yesterday') : ` · ${fmtMD(e.date)}`;
+  toast(`+${e.xp} XP`, `${label}${when}${e.req ? ' · ' + tr('REQUEST ×2') : ''}${e.bonus ? ' · ' + tr('FOCUS ×1.5') : ''}${st ? ' · ' + st : ''} · +${fmtYen(e.xp * YEN_PER_XP)}`,
+    { label: tr('Undo'), fn: () => undoEntry(e.id) });
   announce(before, after);
   checkCompendium();
   render();
@@ -408,23 +461,23 @@ function undoEntry(id) {
   if (!e) return;
   state.log = state.log.filter(x => x !== e);
   persist(); sfx.back(); render();
-  toast('UNDONE', `${entryLabel(e)} · −${e.xp} XP`);
+  toast(tr('UNDONE'), `${entryLabel(e)} · −${e.xp} XP`);
 }
 
 function announce(b, a) {
   for (const k of STAT_ORDER) {
-    if (a.stats[k] > b.stats[k]) queueRankUp({ kicker: STATS[k].name, big: 'RANK UP!', sub: `Rank ${a.stats[k]} — ${STATS[k].ranks[a.stats[k] - 1]}`, stat: true });
+    if (a.stats[k] > b.stats[k]) queueRankUp({ kicker: STATS[k].name, big: tr('RANK UP!'), sub: tr('Rank {n} — {name}', { n: a.stats[k], name: STATS[k].ranks[a.stats[k] - 1] }), stat: true });
   }
   for (const s of state.skills) {
-    if ((a.skills[s.id] || 1) > (b.skills[s.id] || 1)) queueRankUp({ kicker: s.name, big: 'LEVEL UP!', sub: `Level ${a.skills[s.id]}` });
+    if ((a.skills[s.id] || 1) > (b.skills[s.id] || 1)) queueRankUp({ kicker: s.name, big: tr('LEVEL UP!'), sub: tr('Level {n}', { n: a.skills[s.id] }) });
   }
   for (const c of state.confidants) {
     if ((a.conf[c.id] || 1) > (b.conf[c.id] || 1)) {
       const r = a.conf[c.id];
-      queueRankUp({ kicker: `${arcanaOf(c)[1]} · ${c.name}`, big: r >= 10 ? 'MAX RANK!' : 'RANK UP!', sub: `Confidant Rank ${r}`, conf: true });
+      queueRankUp({ kicker: `${tr(arcanaOf(c)[1])} · ${c.name}`, big: tr(r >= 10 ? 'MAX RANK!' : 'RANK UP!'), sub: tr('Confidant Rank {n}', { n: r }), conf: true });
     }
   }
-  if (a.player > b.player) queueRankUp({ kicker: state.player.name, big: 'LEVEL UP!', sub: `Lv ${a.player} — ${titleFor(a.player)}`, player: true });
+  if (a.player > b.player) queueRankUp({ kicker: state.player.name, big: tr('LEVEL UP!'), sub: `LV ${a.player} — ${titleFor(a.player)}`, player: true });
 }
 
 // extra: more entry fields, e.g. { minutes } from the timer.
@@ -446,14 +499,14 @@ function questCompletion(q) {
 
 // Daily quests may run on chosen weekdays only (q.days = [0..6], Sun = 0). Missing = every day.
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
-const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const dayShort = i => LOC().dayShort[i];
 const isScheduled = (q, d = new Date()) => q.type !== 'daily' || !q.days || q.days.includes(d.getDay());
 function scheduleLabel(q) {
   if (q.type !== 'daily' || !q.days || q.days.length === 7) return '';
   const k = WEEK_ORDER.filter(d => q.days.includes(d)).join();
-  if (k === '1,2,3,4,5') return 'Weekdays';
-  if (k === '6,0') return 'Weekends';
-  return WEEK_ORDER.filter(d => q.days.includes(d)).map(d => DAY_SHORT[d]).join(' ');
+  if (k === '1,2,3,4,5') return tr('Weekdays');
+  if (k === '6,0') return tr('Weekends');
+  return WEEK_ORDER.filter(d => q.days.includes(d)).map(dayShort).join(' ');
 }
 
 function questStreak(q) {
@@ -489,7 +542,7 @@ async function toggleQuest(id) {
     return;
   }
   const left = stagesOf(q).filter(s => !stageDone(q, s)).length;
-  if (left && !await askConfirm('CLEAR IT NOW?', `${left} stage${left === 1 ? '' : 's'} still open. Clear the whole mission anyway?`, 'Clear mission')) return;
+  if (left && !await askConfirm(tr('CLEAR IT NOW?'), trn(left, '{n} stage still open. Clear the whole mission anyway?', '{n} stages still open. Clear the whole mission anyway?'), tr('Clear mission'))) return;
   completeQuest(q);
 }
 
@@ -497,7 +550,7 @@ function completeQuest(q) {
   const I = intensity(q.intensity);
   const g = buildGains([q.target], I.xp);
   commit({ kind: 'quest', questId: q.id, tg: [q.target], skills: g.skills, stats: g.stats, xp: g.xp || I.xp, intensity: I.id, note: q.title, ...(g.bonus && { bonus: true }), ...(g.req && { req: dkey() }) });
-  if (q.type === 'once') queueRankUp({ kicker: 'MISSION', big: 'TARGET DOWN', sub: q.title });
+  if (q.type === 'once') queueRankUp({ kicker: tr('MISSION'), big: tr('TARGET DOWN'), sub: q.title });
 }
 
 /* ---------- mission stages ----------
@@ -545,7 +598,7 @@ function toggleStage(questId, stageId) {
 // "D-3 · 11/26" style chip for a deadline
 function dueChip(deadline) {
   const n = daysUntil(deadline);
-  return `<span class="chip ${n <= 2 ? 'hot' : ''}">${n < 0 ? `${-n}d overdue` : n === 0 ? 'due today' : `D-${n}`} · ${fmtMD(deadline)}</span>`;
+  return `<span class="chip ${n <= 2 ? 'hot' : ''}">${n < 0 ? tr('{n}d overdue', { n: -n }) : n === 0 ? tr('due today') : `D-${n}`} · ${fmtMD(deadline)}</span>`;
 }
 
 /* ---------- focus timer ----------
@@ -555,7 +608,7 @@ function dueChip(deadline) {
 const timerMs = (t = state.timer, now = Date.now()) =>
   t ? Math.max(0, (t.pausedAt ? Date.parse(t.pausedAt) : now) - Date.parse(t.startedAt) - (t.pausedMs || 0)) : 0;
 const fmtClock = ms => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 3600)}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`; };
-const fmtMin = m => m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`;
+const fmtMin = m => m < 60 ? tr('{n} min', { n: m }) : tr('{n} h', { n: Math.floor(m / 60) }) + (m % 60 ? ' ' + tr('{n} min', { n: m % 60 }) : '');
 // Matches the effort hints: Light ~15 min, Normal ~45 min, Heavy ~2 h. Epic stays a choice.
 const effortFor = min => min < 25 ? 'light' : min < 90 ? 'normal' : 'heavy';
 const targetsLabel = tg => tg.map(t => targetInfo(t).label).join(' + ');
@@ -567,11 +620,11 @@ function timerChanged() {
 function startTimer(targets) {
   const tg = [...new Set(targets)].filter(t => targetInfo(t).stat);
   if (!tg.length) return;
-  if (state.timer) { toast('TIMER RUNNING', `Stop ${state.timer.label} first`); return; }
+  if (state.timer) { toast(tr('TIMER RUNNING'), tr('Stop {label} first', { label: state.timer.label })); return; }
   state.timer = { tg, label: targetsLabel(tg), startedAt: new Date().toISOString(), pausedAt: null, pausedMs: 0 };
   timerChanged();
   sfx.ok();
-  toast('TIMER STARTED', state.timer.label);
+  toast(tr('TIMER STARTED'), state.timer.label);
 }
 function pauseTimer() {
   const t = state.timer;
@@ -603,18 +656,18 @@ function timerAway({ from, to }) {
   if (ms < 60 * 1000) return;
   const min = Math.round(ms / 60000);
   openModal(`
-    <h2 class="m-title">${ransom('WELCOME BACK', 9)}</h2>
-    <p class="m-text">You were away for <b>${fmtMin(min)}</b> while the ${esc(t.label)} timer kept running.</p>
+    <h2 class="m-title">${ransom(tr('WELCOME BACK'), 9)}</h2>
+    <p class="m-text">${tr('You were away for <b>{min}</b> while the {label} timer kept running.', { min: fmtMin(min), label: esc(t.label) })}</p>
     <div class="m-actions">
-      <button class="btn ghost" data-act="close-modal">Keep the time</button>
-      <button class="btn primary" id="away-drop">Remove ${fmtMin(min)}</button>
+      <button class="btn ghost" data-act="close-modal">${tr('Keep the time')}</button>
+      <button class="btn primary" id="away-drop">${tr('Remove {min}', { min: fmtMin(min) })}</button>
     </div>`, root => {
     root.querySelector('#away-drop').onclick = () => {
       closeModal();
       if (state.timer !== t) return;
       t.pausedMs = (t.pausedMs || 0) + ms;
       timerChanged();
-      toast('TIME REMOVED', fmtMin(min));
+      toast(tr('TIME REMOVED'), fmtMin(min));
     };
   });
 }
@@ -629,14 +682,14 @@ const TM_ICON = {
 function timerPanel() {
   const t = state.timer;
   if (!t) return '';
-  return `<div class="timer-chip ${t.pausedAt ? 'paused' : ''}" role="group" aria-label="Focus timer">
-    <div class="tm-top"><span class="tm-dot" aria-hidden="true"></span><b>${esc(t.label)}</b>${t.pausedAt ? '<em>paused</em>' : ''}</div>
+  return `<div class="timer-chip ${t.pausedAt ? 'paused' : ''}" role="group" aria-label="${tr('Focus timer')}">
+    <div class="tm-top"><span class="tm-dot" aria-hidden="true"></span><b>${esc(t.label)}</b>${t.pausedAt ? `<em>${tr('paused')}</em>` : ''}</div>
     <div class="tm-row">
       <time id="timer-clock">${fmtClock(timerMs(t))}</time>
       ${t.pausedAt
-        ? `<button class="tm-btn" data-act="timer-resume" title="Resume" aria-label="Resume the timer">${TM_ICON.play}</button>`
-        : `<button class="tm-btn" data-act="timer-pause" title="Pause" aria-label="Pause the timer">${TM_ICON.pause}</button>`}
-      <button class="tm-btn stop" data-act="timer-stop" title="Stop and log it" aria-label="Stop the timer and log it">${TM_ICON.stop}</button>
+        ? `<button class="tm-btn" data-act="timer-resume" title="${tr('Resume')}" aria-label="${tr('Resume the timer')}">${TM_ICON.play}</button>`
+        : `<button class="tm-btn" data-act="timer-pause" title="${tr('Pause')}" aria-label="${tr('Pause the timer')}">${TM_ICON.pause}</button>`}
+      <button class="tm-btn stop" data-act="timer-stop" title="${tr('Stop and log it')}" aria-label="${tr('Stop the timer and log it')}">${TM_ICON.stop}</button>
     </div>
   </div>`;
 }
@@ -703,7 +756,7 @@ function showNextRankUp() {
         <div class="ru-kicker">${esc(r.kicker)}</div>
         <div class="ru-big">${ransom(r.big, r.big.length + r.kicker.length)}</div>
         <div class="ru-sub">${esc(r.sub)}</div>
-        <div class="ru-hint">click to continue</div>
+        <div class="ru-hint">${tr('click to continue')}</div>
       </div>
     </div>`;
 }
@@ -725,13 +778,13 @@ function openModal(html, onMount) {
 }
 function closeModal() { $('#modal-root').innerHTML = ''; }
 
-function askConfirm(title, msg, yes = 'Do it') {
+function askConfirm(title, msg, yes = tr('Do it')) {
   return new Promise(res => {
     openModal(`
       <h2 class="m-title">${ransom(title, 3)}</h2>
       <p class="m-text">${esc(msg)}</p>
       <div class="m-actions">
-        <button class="btn ghost" id="cf-no">Cancel</button>
+        <button class="btn ghost" id="cf-no">${tr('Cancel')}</button>
         <button class="btn danger" id="cf-yes">${esc(yes)}</button>
       </div>`, root => {
       root.querySelector('#cf-no').onclick = () => { closeModal(); res(false); };
@@ -746,33 +799,34 @@ const intSeg = (name, cur) => `<div class="seg int">${INTENSITY.map(i =>
   `<label><input type="radio" name="${name}" value="${i.id}" ${cur === i.id ? 'checked' : ''}><span><b>${i.label}</b><small>+${i.xp} XP · ${i.hint}</small></span></label>`).join('')}</div>`;
 function targetSelect(name, cur) {
   return `<select name="${name}">
-    <optgroup label="Skills">${state.skills.map(s => `<option value="skill:${s.id}" ${cur === 'skill:' + s.id ? 'selected' : ''}>${esc(s.name)} → ${STATS[s.stat].name}${isFocus(s.id) ? '  ★ FOCUS ×1.5' : ''}</option>`).join('')}</optgroup>
-    <optgroup label="Social stat only">${STAT_ORDER.map(k => `<option value="stat:${k}" ${cur === 'stat:' + k ? 'selected' : ''}>★ ${STATS[k].name}</option>`).join('')}</optgroup>
+    <optgroup label="${tr('Skills')}">${state.skills.map(s => `<option value="skill:${s.id}" ${cur === 'skill:' + s.id ? 'selected' : ''}>${esc(s.name)} → ${STATS[s.stat].name}${isFocus(s.id) ? '  ★ ' + tr('FOCUS ×1.5') : ''}</option>`).join('')}</optgroup>
+    <optgroup label="${tr('Social stat only')}">${STAT_ORDER.map(k => `<option value="stat:${k}" ${cur === 'stat:' + k ? 'selected' : ''}>★ ${STATS[k].name}</option>`).join('')}</optgroup>
   </select>`;
 }
 
 function targetChips(name, selected, hideStats = []) {
   const chip = (v, label, extra = '') => `<label><input type="checkbox" name="${name}" value="${v}" ${selected.includes(v) ? 'checked' : ''}><span>${label}${extra}</span></label>`;
   return `<div class="tchips">
-    <div class="tc-row"><small>Skills</small>${state.skills.map(s => chip('skill:' + s.id, `${skillIcon(s)}${esc(s.name)}`, (isFocus(s.id) ? ' <em>★×1.5</em>' : '') + (isRequest(s.id) ? ' <em>×2 REQ</em>' : ''))).join('')}</div>
-    <div class="tc-row"><small>Social stat only</small>${STAT_ORDER.filter(k => !hideStats.includes(k)).map(k => chip('stat:' + k, '★ ' + STATS[k].name)).join('')}</div>
+    <div class="tc-row"><small>${tr('Skills')}</small>${state.skills.map(s => chip('skill:' + s.id, `${skillIcon(s)}${esc(s.name)}`, (isFocus(s.id) ? ' <em>★×1.5</em>' : '') + (isRequest(s.id) ? ` <em>${tr('×2 REQ')}</em>` : ''))).join('')}</div>
+    <div class="tc-row"><small>${tr('Social stat only')}</small>${STAT_ORDER.filter(k => !hideStats.includes(k)).map(k => chip('stat:' + k, '★ ' + STATS[k].name)).join('')}</div>
   </div>`;
 }
 
 // Live "you will get" line under a target picker. `fixed` = targets always included (e.g. confidant's stat).
 // `fixed(fd)` returns targets always included (e.g. the confidants' stats).
-function bindGainPreview(root, fixed = () => []) {
+// opts.day(): the day to price it for (default: Take Action's "When"); opts.reqSkill: see buildGains.
+function bindGainPreview(root, fixed = () => [], opts = {}) {
   const f = root.querySelector('form'), out = root.querySelector('.gain-preview');
   const update = () => {
     const fd = new FormData(f);
     const I = intensity(fd.get('int'));
-    const g = buildGains([...fd.getAll('target'), ...fixed(fd)], I.xp, formDay(fd) || dkey());
+    const g = buildGains([...fd.getAll('target'), ...fixed(fd)], I.xp, opts.day ? opts.day() : formDay(fd) || dkey(), opts.reqSkill);
     const parts = [
-      ...fd.getAll('conf').map(id => `<b>${esc(confById(id)?.name)}</b> bond +${I.cpts}`),
+      ...fd.getAll('conf').map(id => tr('<b>{name}</b> bond +{n}', { name: esc(confById(id)?.name), n: I.cpts })),
       ...Object.entries(g.skills).map(([id, xp]) => `<b>${esc(skillById(id).name)}</b> +${xp}`),
       ...Object.entries(g.stats).map(([k, v]) => `${STATS[k].name} +${v}`),
     ];
-    out.innerHTML = parts.length ? `You get: ${parts.join(' · ')} · <b>Player +${g.xp} XP</b>` : '<i>Pick at least one skill or stat.</i>';
+    out.innerHTML = parts.length ? tr('You get: {parts} · <b>Player +{xp} XP</b>', { parts: parts.join(' · '), xp: g.xp }) : `<i>${tr('Pick at least one skill or stat.')}</i>`;
     out.classList.toggle('empty', !parts.length);
   };
   f.addEventListener('change', update);
@@ -797,27 +851,27 @@ function openQuickLog(preTarget, opts = {}) {
   const cur = t ? t.tg : preTarget ? [preTarget] : last ? entryTargets(last) : state.skills[0] ? ['skill:' + state.skills[0].id] : ['stat:knowledge'];
   const minutes = t ? Math.max(1, Math.round(timerMs(t) / 60000)) : 0;
   openModal(`
-    <h2 class="m-title">${ransom(t ? 'TIME’S UP' : 'TAKE ACTION', 11)}</h2>
-    <p class="m-sub">${t ? `Timer stopped at <b>${fmtClock(timerMs(t))}</b>. Check what it trained, then log it.`
-      : 'How did you spend your time? Pick everything it trained.'}</p>
+    <h2 class="m-title">${ransom(tr(t ? 'TIME’S UP' : 'TAKE ACTION'), 11)}</h2>
+    <p class="m-sub">${t ? tr('Timer stopped at <b>{clock}</b>. Check what it trained, then log it.', { clock: fmtClock(timerMs(t)) })
+      : tr('How did you spend your time? Pick everything it trained.')}</p>
     <form id="ql">
-      <div class="fld"><span>Trains</span>${targetChips('target', cur)}</div>
-      ${t ? `<label class="fld ql-time"><span>Time <i>(minutes)</i></span><input type="number" name="minutes" min="1" max="1440" value="${minutes}" required></label>
-        ${minutes > 360 ? '<p class="ql-warn">That’s a long session — check the minutes if the timer kept running by mistake.</p>' : ''}` : ''}
-      <div class="fld"><span>Effort</span>${intSeg('int', t ? effortFor(minutes) : 'normal')}</div>
-      ${t ? '' : `<div class="fld"><span>When</span><div class="when-row">
+      <div class="fld"><span>${tr('Trains')}</span>${targetChips('target', cur)}</div>
+      ${t ? `<label class="fld ql-time"><span>${tr('Time <i>(minutes)</i>')}</span><input type="number" name="minutes" min="1" max="1440" value="${minutes}" required></label>
+        ${minutes > 360 ? `<p class="ql-warn">${tr('That’s a long session — check the minutes if the timer kept running by mistake.')}</p>` : ''}` : ''}
+      <div class="fld"><span>${tr('Effort')}</span>${intSeg('int', t ? effortFor(minutes) : 'normal')}</div>
+      ${t ? '' : `<div class="fld"><span>${tr('When')}</span><div class="when-row">
         <div class="seg when">${[['today', 'Today'], ['yesterday', 'Yesterday'], ['date', 'Earlier…']].map(([v, l]) =>
-          `<label><input type="radio" name="when" value="${v}" ${v === 'today' ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
-        <input type="date" name="whenDate" class="when-date hidden" aria-label="Date it happened"
+          `<label><input type="radio" name="when" value="${v}" ${v === 'today' ? 'checked' : ''}><span>${tr(l)}</span></label>`).join('')}</div>
+        <input type="date" name="whenDate" class="when-date hidden" aria-label="${tr('Date it happened')}"
           min="${dkey(addDays(new Date(), -365))}" max="${dkey()}" value="${dkey(addDays(new Date(), -2))}">
       </div></div>`}
       <div class="gain-preview"></div>
-      <label class="fld"><span>Note <i>(optional)</i></span><textarea name="note" rows="2" maxlength="280" placeholder="Deployed the k8s cluster, finally."></textarea></label>
+      <label class="fld"><span>${tr('Note <i>(optional)</i>')}</span><textarea name="note" rows="2" maxlength="280" placeholder="${tr('Deployed the k8s cluster, finally.')}"></textarea></label>
       <div class="m-actions">
-        ${t ? '<button type="button" class="btn ghost ql-left" data-act="timer-discard">Discard timer</button>' : ''}
-        <button type="button" class="btn ghost" data-act="close-modal">Cancel</button>
-        ${t ? '' : '<button type="button" class="btn" id="ql-timer">Start timer</button>'}
-        <button class="btn primary">${t ? 'Log it' : 'Spend time'} <kbd>${KEY.submit}</kbd></button>
+        ${t ? `<button type="button" class="btn ghost ql-left" data-act="timer-discard">${tr('Discard timer')}</button>` : ''}
+        <button type="button" class="btn ghost" data-act="close-modal">${tr('Cancel')}</button>
+        ${t ? '' : `<button type="button" class="btn" id="ql-timer">${tr('Start timer')}</button>`}
+        <button class="btn primary">${tr(t ? 'Log it' : 'Spend time')} <kbd>${KEY.submit}</kbd></button>
       </div>
     </form>`, root => {
     const f = root.querySelector('form');
@@ -839,7 +893,7 @@ function openQuickLog(preTarget, opts = {}) {
       });
       root.querySelector('#ql-timer').onclick = () => {
         const tg = new FormData(f).getAll('target');
-        if (!tg.length) { toast('PICK ONE', 'Choose at least one skill or stat'); return; }
+        if (!tg.length) { toast(tr('PICK ONE'), tr('Choose at least one skill or stat')); return; }
         closeModal();
         startTimer(tg);
       };
@@ -848,9 +902,9 @@ function openQuickLog(preTarget, opts = {}) {
       e.preventDefault();
       const fd = new FormData(f);
       const tg = fd.getAll('target');
-      if (!tg.length) { toast('PICK ONE', 'Choose at least one skill or stat'); return; }
+      if (!tg.length) { toast(tr('PICK ONE'), tr('Choose at least one skill or stat')); return; }
       const day = formDay(fd);
-      if (!day) { toast('PICK A DATE', 'Up to a year back, not in the future'); return; }
+      if (!day) { toast(tr('PICK A DATE'), tr('Up to a year back, not in the future')); return; }
       closeModal();
       if (t) {
         logActivity(tg, fd.get('int'), String(fd.get('note') || '').trim(), { minutes: Math.round(Number(fd.get('minutes'))) || minutes });
@@ -864,19 +918,19 @@ function openQuickLog(preTarget, opts = {}) {
 function skillModal(id) {
   const s = id ? skillById(id) : { name: '', icon: '', stat: 'proficiency' };
   openModal(`
-    <h2 class="m-title">${ransom(id ? 'EDIT SKILL' : 'NEW SKILL', 5)}</h2>
+    <h2 class="m-title">${ransom(tr(id ? 'EDIT SKILL' : 'NEW SKILL'), 5)}</h2>
     <form>
-      <label class="fld"><span>Name</span><input name="name" required maxlength="40" value="${esc(s.name)}" placeholder="Guitar, Cooking, Rust…"></label>
-      <div class="fld"><span>Icon <i>(optional — none shows the first letters)</i></span>
+      <label class="fld"><span>${tr('Name')}</span><input name="name" required maxlength="40" value="${esc(s.name)}" placeholder="${tr('Guitar, Cooking, Rust…')}"></label>
+      <div class="fld"><span>${tr('Icon <i>(optional — none shows the first letters)</i>')}</span>
         <div class="icon-grid">
-          <label title="Letters"><input type="radio" name="icon" value="" ${!ICONS[s.icon] ? 'checked' : ''}><span class="sk-mono">${esc((s.name || 'Ab').slice(0, 2).toUpperCase())}</span></label>
-          ${ICON_KEYS.map(k => `<label title="${k}"><input type="radio" name="icon" value="${k}" ${s.icon === k ? 'checked' : ''}><span>${iconSvg(k)}</span></label>`).join('')}
+          <label title="${tr('Letters')}"><input type="radio" name="icon" value="" ${!ICONS[s.icon] ? 'checked' : ''}><span class="sk-mono">${esc((s.name || 'Ab').slice(0, 2).toUpperCase())}</span></label>
+          ${ICON_KEYS.map(k => `<label title="${tr(k)}"><input type="radio" name="icon" value="${k}" ${s.icon === k ? 'checked' : ''}><span>${iconSvg(k)}</span></label>`).join('')}
         </div>
       </div>
-      <div class="fld"><span>Feeds social stat</span>${statSeg('stat', s.stat)}</div>
+      <div class="fld"><span>${tr('Feeds social stat')}</span>${statSeg('stat', s.stat)}</div>
       <div class="m-actions">
-        <button type="button" class="btn ghost" data-act="close-modal">Cancel</button>
-        <button class="btn primary">Save</button>
+        <button type="button" class="btn ghost" data-act="close-modal">${tr('Cancel')}</button>
+        <button class="btn primary">${tr('Save')}</button>
       </div>
     </form>`, root => {
     root.querySelector('form').onsubmit = e => {
@@ -890,12 +944,72 @@ function skillModal(id) {
   });
 }
 
+// Edit a journal entry. Actions: everything (what it trained, effort, minutes, date, note) — XP is
+// recomputed by the same rules as logging, keeping a Mementos ×2 it earned while that skill stays in.
+// Quests, stages and hangouts: note and date only — their reward comes from the quest or the bond.
+function entryModal(id) {
+  const e = state.log.find(x => x.id === id);
+  if (!e || e.kind === 'review') return;
+  const full = e.kind === 'activity';
+  openModal(`
+    <h2 class="m-title">${ransom(tr('EDIT ENTRY'), 15)}</h2>
+    <p class="m-sub">${full ? tr('Fix what it trained, the effort or the day — XP, levels and ranks recalculate.')
+      : `<b>${esc(entryLabel(e))}</b> · +${e.xp} XP. ${tr(e.kind === 'hangout' ? 'Its reward comes from the bond; you can change the note and the day.'
+        : 'Its reward comes from the quest; you can change the note and the day.')}`}</p>
+    <form id="ee">
+      ${full ? `<div class="fld"><span>${tr('Trains')}</span>${targetChips('target', entryTargets(e))}</div>
+        <div class="fld"><span>${tr('Effort')}</span>${intSeg('int', e.intensity || 'normal')}</div>
+        ${e.minutes ? `<label class="fld ql-time"><span>${tr('Time <i>(minutes)</i>')}</span><input type="number" name="minutes" min="1" max="1440" value="${e.minutes}" required></label>` : ''}
+        <div class="gain-preview"></div>` : ''}
+      <label class="fld"><span>${tr('Day')}</span><input type="date" name="date" value="${esc(e.date)}" max="${dkey()}" required></label>
+      <label class="fld"><span>${tr('Note <i>(optional)</i>')}</span><textarea name="note" rows="2" maxlength="280">${esc(e.note || '')}</textarea></label>
+      <div class="m-actions">
+        <button type="button" class="btn ghost" data-act="close-modal">${tr('Cancel')}</button>
+        <button class="btn primary">${tr('Save')}</button>
+      </div>
+    </form>`, root => {
+    const f = root.querySelector('form');
+    // the Mementos ×2 this entry earned (if any) stays tied to its skill; otherwise no new one
+    const reqSkill = e.req ? state.requests[e.req] || null : null;
+    if (full) bindGainPreview(root, () => [], { day: () => f.date.value || e.date, reqSkill });
+    f.onsubmit = ev => {
+      ev.preventDefault();
+      const fd = new FormData(f);
+      const day = String(fd.get('date') || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day > dkey()) { toast(tr('PICK A DAY'), tr('Not in the future')); return; }
+      const before = snapshot();
+      if (full) {
+        const tg = [...new Set(fd.getAll('target'))];
+        if (!tg.length) { toast(tr('PICK ONE'), tr('Choose at least one skill or stat')); return; }
+        const I = intensity(fd.get('int'));
+        const g = buildGains(tg, I.xp, day, reqSkill);
+        // rewrite in the current entry format (old saves used skillId / stat / statPts)
+        delete e.skillId; delete e.stat; delete e.statPts; delete e.bonus;
+        Object.assign(e, { tg, skills: g.skills, stats: g.stats, xp: g.xp, intensity: I.id }, g.bonus && { bonus: true });
+        if (!g.req) delete e.req;
+        if (e.minutes) e.minutes = Math.round(Number(fd.get('minutes'))) || e.minutes;
+      }
+      if (day !== e.date) {
+        const t = new Date(e.ts), d = parseKey(day);
+        d.setHours(t.getHours(), t.getMinutes(), t.getSeconds());
+        Object.assign(e, { date: day, ts: d.toISOString() });
+      }
+      e.note = String(fd.get('note') || '').trim();
+      persist(); closeModal(); sfx.ok();
+      announce(before, snapshot());
+      checkCompendium();
+      render();
+      toast(tr('EDITED'), `${entryLabel(e)} · +${e.xp} XP`);
+    };
+  });
+}
+
 // One editable stage in the mission dialog; the hidden id keeps ticked stages ticked after edits.
 const stageEditRow = s => `<li>
-  <input name="stage-title" maxlength="80" value="${esc(s.title)}" placeholder="Next step" aria-label="Stage">
-  <input type="date" name="stage-deadline" value="${esc(s.deadline || '')}" aria-label="Stage deadline (optional)">
+  <input name="stage-title" maxlength="80" value="${esc(s.title)}" placeholder="${tr('Next step')}" aria-label="${tr('Stage')}">
+  <input type="date" name="stage-deadline" value="${esc(s.deadline || '')}" aria-label="${tr('Stage deadline (optional)')}">
   <input type="hidden" name="stage-id" value="${esc(s.id)}">
-  <button type="button" class="ic" data-rm aria-label="Remove stage" title="Remove stage">✕</button>
+  <button type="button" class="ic" data-rm aria-label="${tr('Remove stage')}" title="${tr('Remove stage')}">✕</button>
 </li>`;
 
 function questModal(id, presetType) {
@@ -905,29 +1019,29 @@ function questModal(id, presetType) {
   };
   const types = [['daily', 'Daily', 'resets every day'], ['weekly', 'Weekly', 'resets on Monday'], ['once', 'Mission', 'one-time target']];
   openModal(`
-    <h2 class="m-title">${ransom(id ? 'EDIT QUEST' : 'NEW QUEST', 9)}</h2>
+    <h2 class="m-title">${ransom(tr(id ? 'EDIT QUEST' : 'NEW QUEST'), 9)}</h2>
     <form>
-      <label class="fld"><span>Title</span><input name="title" required maxlength="80" value="${esc(q.title)}" placeholder="Meditate 10 minutes"></label>
-      <div class="fld"><span>Type</span><div class="seg">${types.map(([v, l, h]) =>
-        `<label><input type="radio" name="type" value="${v}" ${q.type === v ? 'checked' : ''}><span><b>${l}</b><small>${h}</small></span></label>`).join('')}</div></div>
-      <label class="fld"><span>Rewards</span>${targetSelect('target', q.target)}</label>
-      <div class="fld"><span>Reward size</span>${intSeg('int', q.intensity)}</div>
-      <div class="fld days-fld"><span>Repeat on</span>
-        <div class="seg days">${WEEK_ORDER.map(d => `<label><input type="checkbox" name="days" value="${d}" ${!q.days || q.days.includes(d) ? 'checked' : ''}><span>${DAY_SHORT[d]}</span></label>`).join('')}</div>
+      <label class="fld"><span>${tr('Title')}</span><input name="title" required maxlength="80" value="${esc(q.title)}" placeholder="${tr('Meditate 10 minutes')}"></label>
+      <div class="fld"><span>${tr('Type')}</span><div class="seg">${types.map(([v, l, h]) =>
+        `<label><input type="radio" name="type" value="${v}" ${q.type === v ? 'checked' : ''}><span><b>${tr(l)}</b><small>${tr(h)}</small></span></label>`).join('')}</div></div>
+      <label class="fld"><span>${tr('Rewards')}</span>${targetSelect('target', q.target)}</label>
+      <div class="fld"><span>${tr('Reward size')}</span>${intSeg('int', q.intensity)}</div>
+      <div class="fld days-fld"><span>${tr('Repeat on')}</span>
+        <div class="seg days">${WEEK_ORDER.map(d => `<label><input type="checkbox" name="days" value="${d}" ${!q.days || q.days.includes(d) ? 'checked' : ''}><span>${dayShort(d)}</span></label>`).join('')}</div>
         <div class="day-presets">
-          <button type="button" class="btn small ghost" data-days="0,1,2,3,4,5,6">Every day</button>
-          <button type="button" class="btn small ghost" data-days="1,2,3,4,5">Weekdays</button>
-          <button type="button" class="btn small ghost" data-days="6,0">Weekends</button>
+          <button type="button" class="btn small ghost" data-days="0,1,2,3,4,5,6">${tr('Every day')}</button>
+          <button type="button" class="btn small ghost" data-days="1,2,3,4,5">${tr('Weekdays')}</button>
+          <button type="button" class="btn small ghost" data-days="6,0">${tr('Weekends')}</button>
         </div>
       </div>
-      <label class="fld deadline-fld"><span>Deadline <i>(missions only, optional)</i></span><input type="date" name="deadline" value="${esc(q.deadline || '')}"></label>
-      <div class="fld stages-fld"><span>Stages <i>(optional — break the mission into steps; each pays +${intensity(STAGE_EFFORT).xp} XP)</i></span>
+      <label class="fld deadline-fld"><span>${tr('Deadline <i>(missions only, optional)</i>')}</span><input type="date" name="deadline" value="${esc(q.deadline || '')}"></label>
+      <div class="fld stages-fld"><span>${tr('Stages <i>(optional — break the mission into steps; each pays +{xp} XP)</i>', { xp: intensity(STAGE_EFFORT).xp })}</span>
         <ol class="stage-edit">${stagesOf(q).map(stageEditRow).join('')}</ol>
-        <button type="button" class="btn small ghost" id="add-stage">+ Add stage</button>
+        <button type="button" class="btn small ghost" id="add-stage">${tr('+ Add stage')}</button>
       </div>
       <div class="m-actions">
-        <button type="button" class="btn ghost" data-act="close-modal">Cancel</button>
-        <button class="btn primary">Save</button>
+        <button type="button" class="btn ghost" data-act="close-modal">${tr('Cancel')}</button>
+        <button class="btn primary">${tr('Save')}</button>
       </div>
     </form>`, root => {
     const f = root.querySelector('form');
@@ -952,7 +1066,7 @@ function questModal(id, presetType) {
       e.preventDefault();
       const fd = new FormData(f);
       const days = fd.getAll('days').map(Number);
-      if (fd.get('type') === 'daily' && !days.length) { toast('NO DAYS', 'Pick at least one day'); return; }
+      if (fd.get('type') === 'daily' && !days.length) { toast(tr('NO DAYS'), tr('Pick at least one day')); return; }
       const ids = fd.getAll('stage-id'), dls = fd.getAll('stage-deadline');
       const stages = fd.getAll('stage-title').map((t, i) => ({ id: ids[i] || uid(), title: String(t).trim(), deadline: String(dls[i] || '') }))
         .filter(s => s.title);
@@ -979,15 +1093,15 @@ const arcanaOf = c => ARCANA.find(a => a[1] === c.arcana) || ARCANA[0];
 function confModal(id) {
   const c = id ? confById(id) : { name: '', arcana: 'Fool', stat: 'kindness', notes: '' };
   openModal(`
-    <h2 class="m-title">${ransom(id ? 'EDIT CONFIDANT' : 'NEW CONFIDANT', 13)}</h2>
+    <h2 class="m-title">${ransom(tr(id ? 'EDIT CONFIDANT' : 'NEW CONFIDANT'), 13)}</h2>
     <form>
-      <label class="fld"><span>Name</span><input name="name" required maxlength="40" value="${esc(c.name)}" placeholder="Mom, Best friend, Mentor…"></label>
-      <label class="fld"><span>Arcana</span><select name="arcana">${ARCANA.map(([n, a]) => `<option value="${a}" ${c.arcana === a ? 'selected' : ''}>${n} — ${a}</option>`).join('')}</select></label>
-      <div class="fld"><span>Time together grows</span>${statSeg('stat', c.stat)}</div>
-      <label class="fld"><span>Notes <i>(what you know, what they like)</i></span><textarea name="notes" rows="3" maxlength="600">${esc(c.notes)}</textarea></label>
+      <label class="fld"><span>${tr('Name')}</span><input name="name" required maxlength="40" value="${esc(c.name)}" placeholder="${tr('Mom, Best friend, Mentor…')}"></label>
+      <label class="fld"><span>${tr('Arcana')}</span><select name="arcana">${ARCANA.map(([n, a]) => `<option value="${a}" ${c.arcana === a ? 'selected' : ''}>${n} — ${tr(a)}</option>`).join('')}</select></label>
+      <div class="fld"><span>${tr('Time together grows')}</span>${statSeg('stat', c.stat)}</div>
+      <label class="fld"><span>${tr('Notes <i>(what you know, what they like)</i>')}</span><textarea name="notes" rows="3" maxlength="600">${esc(c.notes)}</textarea></label>
       <div class="m-actions">
-        <button type="button" class="btn ghost" data-act="close-modal">Cancel</button>
-        <button class="btn primary">Save</button>
+        <button type="button" class="btn ghost" data-act="close-modal">${tr('Cancel')}</button>
+        <button class="btn primary">${tr('Save')}</button>
       </div>
     </form>`, root => {
     root.querySelector('form').onsubmit = e => {
@@ -1008,18 +1122,18 @@ function hangoutModal(id) {
   const first = id ? confById(id) : null;
   const confStats = fd => fd.getAll('conf').map(cid => confById(cid)).filter(Boolean).map(c => 'stat:' + c.stat);
   openModal(`
-    <h2 class="m-title">${ransom('HANG OUT', 17)}</h2>
-    <p class="m-sub">Who was there? Everyone you pick grows closer.</p>
+    <h2 class="m-title">${ransom(tr('HANG OUT'), 17)}</h2>
+    <p class="m-sub">${tr('Who was there? Everyone you pick grows closer.')}</p>
     <form>
-      <div class="fld"><span>With</span><div class="tchips"><div class="tc-row">${state.confidants.map(c =>
+      <div class="fld"><span>${tr('With')}</span><div class="tchips"><div class="tc-row">${state.confidants.map(c =>
         `<label><input type="checkbox" name="conf" value="${c.id}" ${c.id === id ? 'checked' : ''}><span>${esc(arcanaOf(c)[0])} ${esc(c.name)}</span></label>`).join('')}</div></div></div>
-      <div class="fld"><span>How deep?</span>${intSeg('int', 'normal')}</div>
-      <div class="fld"><span>Also trained <i>(optional · their stats are always included)</i></span>${targetChips('target', first?.lastTg || [])}</div>
+      <div class="fld"><span>${tr('How deep?')}</span>${intSeg('int', 'normal')}</div>
+      <div class="fld"><span>${tr('Also trained <i>(optional · their stats are always included)</i>')}</span>${targetChips('target', first?.lastTg || [])}</div>
       <div class="gain-preview"></div>
-      <label class="fld"><span>What happened <i>(optional)</i></span><textarea name="note" rows="2" maxlength="280" placeholder="Ramen and a long talk about the future."></textarea></label>
+      <label class="fld"><span>${tr('What happened <i>(optional)</i>')}</span><textarea name="note" rows="2" maxlength="280" placeholder="${tr('Ramen and a long talk about the future.')}"></textarea></label>
       <div class="m-actions">
-        <button type="button" class="btn ghost" data-act="close-modal">Cancel</button>
-        <button class="btn primary">Spend time</button>
+        <button type="button" class="btn ghost" data-act="close-modal">${tr('Cancel')}</button>
+        <button class="btn primary">${tr('Spend time')}</button>
       </div>
     </form>`, root => {
     bindGainPreview(root, confStats);
@@ -1027,7 +1141,7 @@ function hangoutModal(id) {
       e.preventDefault();
       const fd = new FormData(e.target);
       const confIds = fd.getAll('conf').map(String);
-      if (!confIds.length) { toast('WITH WHOM?', 'Pick at least one confidant'); return; }
+      if (!confIds.length) { toast(tr('WITH WHOM?'), tr('Pick at least one confidant')); return; }
       const I = intensity(fd.get('int'));
       const extra = fd.getAll('target');
       const g = buildGains([...extra, ...confStats(fd)], I.xp);
@@ -1043,10 +1157,10 @@ const bar = (pct, cls = '') => `<div class="bar ${cls}"><i style="width:${Math.m
 const pips = (n, total) => `<div class="pips">${Array.from({ length: total }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</div>`;
 function head(id, quote) {
   const s = SCREENS.find(x => x.id === id);
-  const q = (quote || QUOTES[(new Date().getDate() + SCREENS.indexOf(s)) % QUOTES.length]).replace('{name}', state.player.name);
+  const q = tr(quote || QUOTES[(new Date().getDate() + SCREENS.indexOf(s)) % QUOTES.length]).replace('{name}', state.player.name);
   return `<header class="scr-head"><h1>${ransom(s.label.toUpperCase(), SCREENS.indexOf(s) + 2)}</h1><div class="scr-sub"><span>${esc(s.sub)}</span><em>“${esc(q)}”</em></div></header>`;
 }
-const empty = (big, small, act, btn) => `<div class="empty"><b>${esc(big)}</b><span>${esc(small)}</span>${act ? `<button class="btn primary" data-act="${act}">${esc(btn)}</button>` : ''}</div>`;
+const empty = (big, small, act, btn) => `<div class="empty"><b>${esc(tr(big))}</b><span>${esc(tr(small))}</span>${act ? `<button class="btn primary" data-act="${act}">${esc(tr(btn))}</button>` : ''}</div>`;
 
 function radar() {
   const size = 440, c = size / 2, R = 140;
@@ -1060,7 +1174,7 @@ function radar() {
   const labels = STAT_ORDER.map((k, i) => {
     const [x, y] = pt(i, R + 62);
     const r = statRank(k, D.stats[k]);
-    return `<div class="rd-label" style="left:${x / size * 100}%;top:${y / size * 100}%"><b>${STATS[k].name}</b><span>${r.max ? 'MAX' : 'Rk ' + r.rank} · ${r.name}</span></div>`;
+    return `<div class="rd-label" style="left:${x / size * 100}%;top:${y / size * 100}%"><b>${STATS[k].name}</b><span>${r.max ? tr('MAX') : tr('Rk {n}', { n: r.rank })} · ${r.name}</span></div>`;
   }).join('');
   return `<div class="radar">
     <svg viewBox="0 0 ${size} ${size}">
@@ -1086,7 +1200,7 @@ function heatmap(weeks) {
     cols += `<div class="hw">${cells}</div>`;
   }
   return `<div class="heat" style="--w:${weeks}">${cols}</div>
-    <div class="heat-legend"><span>less</span><i class="h0"></i><i class="h1"></i><i class="h2"></i><i class="h3"></i><i class="h4"></i><span>more</span></div>`;
+    <div class="heat-legend"><span>${tr('less')}</span><i class="h0"></i><i class="h1"></i><i class="h2"></i><i class="h3"></i><i class="h4"></i><span>${tr('more')}</span></div>`;
 }
 
 /* ---------- screens ---------- */
@@ -1103,11 +1217,11 @@ function scrStatus() {
   const statRows = STAT_ORDER.map(k => {
     const r = statRank(k, D.stats[k]);
     return `<div class="stat-row">
-      <div class="sr-top"><span class="sr-name">${STATS[k].name}</span><span class="sr-rank">${r.max ? 'MAX' : 'RANK ' + r.rank}</span></div>
+      <div class="sr-top"><span class="sr-name">${STATS[k].name}</span><span class="sr-rank">${r.max ? tr('MAX') : tr('RANK {n}', { n: r.rank })}</span></div>
       <div class="sr-title">${r.name}</div>
       ${pips(r.rank, 5)}
       ${bar(r.pct, 'thin')}
-      <div class="sr-next">${r.max ? 'Mastered. Truly.' : `${r.toNext} pts → ${STATS[k].ranks[r.rank]}`}</div>
+      <div class="sr-next">${r.max ? tr('Mastered. Truly.') : tr('{n} pts → {rank}', { n: r.toNext, rank: STATS[k].ranks[r.rank] })}</div>
     </div>`;
   }).join('');
 
@@ -1117,52 +1231,52 @@ function scrStatus() {
     const st = stagesOf(m), ns = nextStage(m), pace = missionPace(m);
     const doneN = st.filter(s => stageDone(m, s)).length;
     card = `<section class="calling-card" data-act="go" data-id="quests">
-      <div class="cc-kicker">TARGET</div>
+      <div class="cc-kicker">${tr('TARGET')}</div>
       <div class="cc-title">${esc(m.title)}</div>
-      ${st.length ? `<div class="cc-stages">${bar(doneN / st.length)}<span>${doneN}/${st.length}${pace === 'behind' ? ' · BEHIND' : ''}</span></div>
-        ${ns ? `<div class="cc-next">NEXT: ${esc(ns.title)}${ns.deadline ? ` · ${fmtMD(ns.deadline)}` : ''}</div>` : ''}` : ''}
-      <div class="cc-foot"><span>DEADLINE ${fmtMD(m.deadline)}</span>
-        <span class="cc-days">${n < 0 ? `<b>${-n}</b> DAYS OVERDUE` : n === 0 ? '<b>!</b> TODAY' : `<b>${n}</b> DAY${n === 1 ? '' : 'S'} LEFT`}</span></div>
-      ${missions.length > 1 ? `<div class="cc-more">+${missions.length - 1} more target${missions.length > 2 ? 's' : ''}</div>` : ''}
+      ${st.length ? `<div class="cc-stages">${bar(doneN / st.length)}<span>${doneN}/${st.length}${pace === 'behind' ? ' · ' + tr('BEHIND') : ''}</span></div>
+        ${ns ? `<div class="cc-next">${tr('NEXT:')} ${esc(ns.title)}${ns.deadline ? ` · ${fmtMD(ns.deadline)}` : ''}</div>` : ''}` : ''}
+      <div class="cc-foot"><span>${tr('DEADLINE')} ${fmtMD(m.deadline)}</span>
+        <span class="cc-days">${n < 0 ? trn(-n, '<b>{n}</b> DAY OVERDUE', '<b>{n}</b> DAYS OVERDUE') : n === 0 ? `<b>!</b> ${tr('TODAY')}` : trn(n, '<b>{n}</b> DAY LEFT', '<b>{n}</b> DAYS LEFT')}</span></div>
+      ${missions.length > 1 ? `<div class="cc-more">${trn(missions.length - 1, '+{n} more target', '+{n} more targets')}</div>` : ''}
     </section>`;
   } else {
     card = `<section class="calling-card idle" data-act="new-mission">
-      <div class="cc-kicker">NO TARGET</div>
-      <div class="cc-title">Send a calling card.</div>
-      <div class="cc-foot"><span>Set a mission with a deadline →</span></div>
+      <div class="cc-kicker">${tr('NO TARGET')}</div>
+      <div class="cc-title">${tr('Send a calling card.')}</div>
+      <div class="cc-foot"><span>${tr('Set a mission with a deadline →')}</span></div>
     </section>`;
   }
 
   return `${head('status')}
   <div class="status-grid">
     <section class="panel player">
-      <div class="tag">CODENAME</div>
+      <div class="tag">${tr('CODENAME')}</div>
       <div class="p-name">${esc(state.player.name)}</div>
       <div class="p-title">${esc(titleFor(pl.lvl))}</div>
       <div class="p-lv"><span>LV</span><b>${pl.lvl}</b></div>
       ${bar(pl.pct)}
-      <div class="p-xp">${pl.into} / ${pl.need} XP to next level</div>
+      <div class="p-xp">${tr('{into} / {need} XP to next level', { into: pl.into, need: pl.need })}</div>
       <div class="p-nums">
-        <div><b>${D.total}</b><span>Total XP</span></div>
-        <div><b>${dayStreak()}</b><span>Day streak</span></div>
-        <div><b>${state.log.length}</b><span>Actions</span></div>
+        <div><b>${D.total}</b><span>${tr('Total XP')}</span></div>
+        <div><b>${dayStreak()}</b><span>${tr('Day streak')}</span></div>
+        <div><b>${state.log.length}</b><span>${tr('Actions')}</span></div>
       </div>
     </section>
     <section class="radar-panel">${radar()}</section>
     <section class="panel stat-list">${statRows}</section>
     <section class="panel today">
-      <div class="tag">TODAY'S RESULTS</div>
-      <div class="t-nums"><div><b>+${todayXp}</b><span>XP</span></div><div><b>${todayCount}</b><span>actions</span></div>
-        <div><b>${dailies.filter(q => questCompletion(q)).length}/${dailies.length}</b><span>dailies</span></div></div>
+      <div class="tag">${tr("TODAY'S RESULTS")}</div>
+      <div class="t-nums"><div><b>+${todayXp}</b><span>XP</span></div><div><b>${todayCount}</b><span>${tr('actions')}</span></div>
+        <div><b>${dailies.filter(q => questCompletion(q)).length}/${dailies.length}</b><span>${tr('dailies')}</span></div></div>
       <div class="t-quests">${dailies.length ? dailies.map(q => {
         const done = !!questCompletion(q);
         return `<button class="mini-q ${done ? 'done' : ''}" data-act="toggle-quest" data-id="${q.id}"><i></i><span>${esc(q.title)}</span></button>`;
-      }).join('') : '<div class="muted">No daily quests yet.</div>'}</div>
+      }).join('') : `<div class="muted">${tr('No daily quests yet.')}</div>`}</div>
     </section>
     ${card}
     ${conditionPanel()}
     ${requestPanel()}
-    <section class="panel heat-panel"><div class="tag">ACTIVITY · LAST 26 WEEKS</div>${heatmap(26)}</section>
+    <section class="panel heat-panel"><div class="tag">${tr('ACTIVITY · LAST 26 WEEKS')}</div>${heatmap(26)}</section>
   </div>`;
 }
 
@@ -1179,29 +1293,29 @@ function scrSkills() {
         <div class="sk-icon">${skillBadge(s)}</div>
         <div class="sk-name">${esc(s.name)}</div>
         <div class="sk-tools">
-          <button class="ic" title="Edit" data-act="edit-skill" data-id="${s.id}">✎</button>
-          <button class="ic" title="Delete" data-act="del-skill" data-id="${s.id}">✕</button>
+          <button class="ic" title="${tr('Edit')}" data-act="edit-skill" data-id="${s.id}">✎</button>
+          <button class="ic" title="${tr('Delete')}" data-act="del-skill" data-id="${s.id}">✕</button>
         </div>
       </div>
       <div class="sk-mid">
         <div class="sk-lv"><span>LV</span><b>${L.lvl}</b></div>
         <div class="sk-info">
-          <div class="sk-feeds">feeds <b>${STATS[s.stat].name}</b></div>
-          ${focus ? '<div class="sk-focus">★ Focus ×1.5</div>' : ''}
-          ${tXp ? `<div class="sk-today">+${tXp} today</div>` : ''}
+          <div class="sk-feeds">${tr('feeds <b>{stat}</b>', { stat: STATS[s.stat].name })}</div>
+          ${focus ? `<div class="sk-focus">★ ${tr('Focus ×1.5')}</div>` : ''}
+          ${tXp ? `<div class="sk-today">${tr('+{n} today', { n: tXp })}</div>` : ''}
         </div>
       </div>
       ${bar(L.pct)}
-      <div class="sk-xp"><span>${L.into} / ${L.need} XP</span><span>${xp} total</span></div>
+      <div class="sk-xp"><span>${L.into} / ${L.need} XP</span><span>${tr('{n} total', { n: xp })}</span></div>
       <div class="sk-quick">${INTENSITY.map(i => `<button data-act="quick-skill" data-id="${s.id}" data-int="${i.id}" title="${i.label} · ${i.hint}">+${i.xp}</button>`).join('')}
-        <button class="note" data-act="log-skill" data-id="${s.id}" title="Log with a note">✎</button>
-        ${timing ? `<button class="timer on" data-act="timer-stop" title="Stop the timer" aria-label="Stop the ${esc(s.name)} timer">■</button>`
-          : `<button class="timer" data-act="timer-skill" data-id="${s.id}" title="Start a timer" aria-label="Start a timer for ${esc(s.name)}">▶</button>`}</div>
+        <button class="note" data-act="log-skill" data-id="${s.id}" title="${tr('Log with a note')}">✎</button>
+        ${timing ? `<button class="timer on" data-act="timer-stop" title="${tr('Stop the timer')}" aria-label="${tr('Stop the {name} timer', { name: esc(s.name) })}">■</button>`
+          : `<button class="timer" data-act="timer-skill" data-id="${s.id}" title="${tr('Start a timer')}" aria-label="${tr('Start a timer for {name}', { name: esc(s.name) })}">▶</button>`}</div>
     </div>`;
   }).join('');
   return `${head('skills')}
   <div class="skill-grid">${cards}
-    <button class="skill-add" data-act="add-skill"><b>+</b><span>NEW SKILL</span></button>
+    <button class="skill-add" data-act="add-skill"><b>+</b><span>${tr('NEW SKILL')}</span></button>
   </div>`;
 }
 
@@ -1219,32 +1333,32 @@ function questRow(q) {
     const doneN = stages.filter(s => stageDone(q, s)).length;
     const pace = missionPace(q);
     stageBlock = `
-      <div class="ms-prog">${bar(doneN / stages.length)}<span>${doneN}/${stages.length} stages</span>
-        ${pace ? `<span class="chip pace-${pace}">${pace === 'on' ? '● on track' : '● behind'}</span>` : ''}</div>
+      <div class="ms-prog">${bar(doneN / stages.length)}<span>${tr('{done}/{all} stages', { done: doneN, all: stages.length })}</span>
+        ${pace ? `<span class="chip pace-${pace}">● ${tr(pace === 'on' ? 'on track' : 'behind')}</span>` : ''}</div>
       ${done ? '' : `<ol class="ms-stages">${stages.map(s => {
         const sd = stageDone(q, s);
         return `<li class="${sd ? 'done' : ''}">
           <button class="ms-check" data-act="toggle-stage" data-id="${q.id}" data-stage="${s.id}" aria-pressed="${!!sd}"
-            aria-label="${sd ? 'Undo' : 'Complete'} stage: ${esc(s.title)}" title="${sd ? 'Undo' : `Complete · +${intensity(STAGE_EFFORT).xp} XP`}"><i></i></button>
+            aria-label="${tr(sd ? 'Undo stage: {title}' : 'Complete stage: {title}', { title: esc(s.title) })}" title="${sd ? tr('Undo') : tr('Complete · +{xp} XP', { xp: intensity(STAGE_EFFORT).xp })}"><i></i></button>
           <span class="ms-title">${esc(s.title)}</span>
           ${s.deadline && !sd ? dueChip(s.deadline) : sd ? `<span class="ms-when">${fmtMD(sd.date)}</span>` : ''}
         </li>`;
       }).join('')}</ol>`}`;
   }
   return `<div class="quest ${done ? 'done' : ''} ${rest ? 'rest' : ''} ${stages.length ? 'staged' : ''}">
-    <button class="q-check" data-act="toggle-quest" data-id="${q.id}" title="${done ? 'Undo' : 'Complete'}"><i></i></button>
+    <button class="q-check" data-act="toggle-quest" data-id="${q.id}" title="${tr(done ? 'Undo' : 'Complete')}"><i></i></button>
     <div class="q-body">
       <div class="q-title">${esc(q.title)}</div>
       <div class="q-meta"><span class="chip">+${I.xp} XP</span><span class="chip ghost">${t.icon}${esc(t.label)}</span>
         ${sched ? `<span class="chip ghost">↻ ${esc(sched)}</span>` : ''}
-        ${rest ? '<span class="chip rest">rest day</span>' : ''}
+        ${rest ? `<span class="chip rest">${tr('rest day')}</span>` : ''}
         ${streak ? `<span class="chip fire">🔥 ${streak}</span>` : ''}${dl}
-        ${done && q.type === 'once' ? `<span class="chip ghost">cleared ${fmtMD(done.date)}</span>` : ''}</div>
+        ${done && q.type === 'once' ? `<span class="chip ghost">${tr('cleared {date}', { date: fmtMD(done.date) })}</span>` : ''}</div>
       ${stageBlock}
     </div>
     <div class="q-tools">
-      <button class="ic" data-act="edit-quest" data-id="${q.id}" title="Edit">✎</button>
-      <button class="ic" data-act="del-quest" data-id="${q.id}" title="Delete">✕</button>
+      <button class="ic" data-act="edit-quest" data-id="${q.id}" title="${tr('Edit')}">✎</button>
+      <button class="ic" data-act="del-quest" data-id="${q.id}" title="${tr('Delete')}">✕</button>
     </div>
   </div>`;
 }
@@ -1256,18 +1370,18 @@ function scrQuests() {
   const cleared = by('once').filter(q => questCompletion(q));
   const section = (title, sub, list, type, emptyMsg) => `
     <section class="q-section">
-      <div class="q-head"><h2>${title}</h2><span>${sub}</span><button class="btn small" data-act="add-quest" data-type="${type}">+ Add</button></div>
-      ${list.length ? list.map(questRow).join('') : `<div class="muted pad">${emptyMsg}</div>`}
+      <div class="q-head"><h2>${trc('heading', title)}</h2><span>${sub}</span><button class="btn small" data-act="add-quest" data-type="${type}">${tr('+ Add')}</button></div>
+      ${list.length ? list.map(questRow).join('') : `<div class="muted pad">${tr(emptyMsg)}</div>`}
     </section>`;
   return `${head('quests')}
   <div class="quest-cols">
     <div>
-      ${section('Daily', `${daily.filter(q => questCompletion(q)).length}/${daily.filter(q => isScheduled(q) || questCompletion(q)).length} today`, daily, 'daily', 'Small things, every day. That’s how hearts get stolen.')}
-      ${section('Weekly', 'resets Monday', weekly, 'weekly', 'Nothing weekly yet.')}
+      ${section('Daily', tr('{done}/{all} today', { done: daily.filter(q => questCompletion(q)).length, all: daily.filter(q => isScheduled(q) || questCompletion(q)).length }), daily, 'daily', 'Small things, every day. That’s how hearts get stolen.')}
+      ${section('Weekly', tr('resets Monday'), weekly, 'weekly', 'Nothing weekly yet.')}
     </div>
     <div>
-      ${section('Missions', 'one-time targets', missions, 'once', 'No active missions. Pick a big target and give it a deadline.')}
-      ${cleared.length ? `<section class="q-section cleared"><div class="q-head"><h2>Cleared</h2><span>${cleared.length} taken down</span></div>${cleared.map(questRow).join('')}</section>` : ''}
+      ${section('Missions', tr('one-time targets'), missions, 'once', 'No active missions. Pick a big target and give it a deadline.')}
+      ${cleared.length ? `<section class="q-section cleared"><div class="q-head"><h2>${tr('Cleared')}</h2><span>${tr('{n} taken down', { n: cleared.length })}</span></div>${cleared.map(questRow).join('')}</section>` : ''}
     </div>
   </div>`;
 }
@@ -1279,22 +1393,22 @@ function scrConfidants() {
     const last = [...state.log].reverse().find(e => entryConfs(e).includes(c.id));
     const since = last ? -daysUntil(last.date) : null;
     return `<div class="conf-card">
-      <div class="arcana"><span class="ar-num">${esc(num)}</span><span class="ar-name">${esc(name)}</span></div>
+      <div class="arcana"><span class="ar-num">${esc(num)}</span><span class="ar-name">${esc(tr(name))}</span></div>
       <div class="conf-body">
         <div class="conf-top"><div class="conf-name">${esc(c.name)}</div>
-          <div class="sk-tools"><button class="ic" data-act="edit-conf" data-id="${c.id}">✎</button><button class="ic" data-act="del-conf" data-id="${c.id}">✕</button></div></div>
-        <div class="conf-rank"><span>RANK</span><b>${r.max ? 'MAX' : r.rank}</b></div>
+          <div class="sk-tools"><button class="ic" data-act="edit-conf" data-id="${c.id}" title="${tr('Edit')}">✎</button><button class="ic" data-act="del-conf" data-id="${c.id}" title="${tr('Delete')}">✕</button></div></div>
+        <div class="conf-rank"><span>${tr('RANK')}</span><b>${r.max ? tr('MAX') : r.rank}</b></div>
         ${pips(r.rank, 10)}
-        <div class="conf-meta">${r.max ? 'Bond complete.' : `${r.toNext} more to rank ${r.rank + 1}`} · grows ${STATS[c.stat].name}
-          ${since !== null ? ` · last seen ${since === 0 ? 'today' : since + 'd ago'}` : ''}</div>
+        <div class="conf-meta">${r.max ? tr('Bond complete.') : tr('{n} more to rank {next}', { n: r.toNext, next: r.rank + 1 })} · ${tr('grows {stat}', { stat: STATS[c.stat].name })}
+          ${since !== null ? ` · ${since === 0 ? tr('last seen today') : tr('last seen {n}d ago', { n: since })}` : ''}</div>
         ${c.notes ? `<div class="conf-notes">${esc(c.notes)}</div>` : ''}
-        <button class="btn primary small" data-act="hangout" data-id="${c.id}">Spend time</button>
+        <button class="btn primary small" data-act="hangout" data-id="${c.id}">${tr('Spend time')}</button>
       </div>
     </div>`;
   }).join('');
   return `${head('confidants')}
-  ${state.confidants.length > 1 ? '<div class="conf-bar"><button class="btn primary" data-act="hangout">Group hangout</button></div>' : ''}
-  ${state.confidants.length ? `<div class="conf-grid">${cards}<button class="skill-add" data-act="add-conf"><b>+</b><span>NEW CONFIDANT</span></button></div>`
+  ${state.confidants.length > 1 ? `<div class="conf-bar"><button class="btn primary" data-act="hangout">${tr('Group hangout')}</button></div>` : ''}
+  ${state.confidants.length ? `<div class="conf-grid">${cards}<button class="skill-add" data-act="add-conf"><b>+</b><span>${tr('NEW CONFIDANT')}</span></button></div>`
     : empty('No confidants yet.', 'Friends, family, mentors — the people you want to grow closer to. Each bond has 10 ranks.', 'add-conf', '+ Add your first confidant')}`;
 }
 
@@ -1302,10 +1416,11 @@ const KIND_TAG = { activity: 'ACTION', quest: 'QUEST', stage: 'STAGE', hangout: 
 const jItem = e => `
   <div class="j-item">
     <span class="j-time">${fmtTime(e.ts)}</span>
-    <span class="j-kind ${e.kind}">${KIND_TAG[e.kind] || 'ACTION'}</span>
+    <span class="j-kind ${e.kind}">${tr(KIND_TAG[e.kind] || 'ACTION')}</span>
     <span class="j-label">${esc(entryLabel(e))}${e.minutes ? ` <span class="j-min">· ${fmtMin(e.minutes)}</span>` : ''}${e.note ? ` — <i>${esc(e.note)}</i>` : ''}</span>
     <span class="j-xp">+${e.xp}${statsText(e, true) ? ' · ' + statsText(e, true) : ''}</span>
-    <button class="ic" data-act="del-entry" data-id="${e.id}" title="Delete (undo)">✕</button>
+    ${e.kind === 'review' ? '<span></span>' : `<button class="ic" data-act="edit-entry" data-id="${e.id}" title="${tr('Edit')}" aria-label="${tr('Edit entry')}">✎</button>`}
+    <button class="ic" data-act="del-entry" data-id="${e.id}" title="${tr('Delete (undo)')}" aria-label="${tr('Delete entry')}">✕</button>
   </div>`;
 
 let journalTab = 'log';
@@ -1316,7 +1431,7 @@ function scrJournal() {
   const tabs = [['log', 'Log'], ['calendar', 'Calendar'], ['charts', 'Charts']];
   const body = journalTab === 'calendar' ? journalCalendar() : journalTab === 'charts' ? journalCharts() : journalLog();
   return `${head('journal')}
-  <div class="j-tabs">${tabs.map(([id, l]) => `<button class="j-tab ${journalTab === id ? 'on' : ''}" data-act="j-tab" data-id="${id}">${l}</button>`).join('')}</div>
+  <div class="j-tabs">${tabs.map(([id, l]) => `<button class="j-tab ${journalTab === id ? 'on' : ''}" data-act="j-tab" data-id="${id}">${tr(l)}</button>`).join('')}</div>
   ${body}`;
 }
 
@@ -1332,19 +1447,18 @@ function journalLog() {
     const dt = parseKey(g.date);
     const cond = state.conditions[g.date];
     return `<div class="j-day">
-      <div class="j-date"><b>${dt.getMonth() + 1}/${dt.getDate()}</b><span class="dow ${dt.getDay() === 0 ? 'sun' : dt.getDay() === 6 ? 'sat' : ''}">${DOW[dt.getDay()]}</span><em>+${D.byDate[g.date] || 0} XP</em>
+      <div class="j-date"><b>${fmtDate(dt)}</b><span class="dow ${dt.getDay() === 0 ? 'sun' : dt.getDay() === 6 ? 'sat' : ''}">${dow(dt.getDay())}</span><em>+${D.byDate[g.date] || 0} XP</em>
         ${cond ? `<span class="cond-chip c-${cond}">${condLabel(cond)}</span>` : ''}</div>
       <div class="j-items">${g.items.map(jItem).join('')}</div>
     </div>`;
   }).join('');
-  return `<section class="panel heat-panel wide"><div class="tag">ACTIVITY · LAST YEAR</div>${heatmap(52)}</section>
+  return `<section class="panel heat-panel wide"><div class="tag">${tr('ACTIVITY · LAST YEAR')}</div>${heatmap(52)}</section>
   ${entries.length ? `<div class="journal">${body}</div>
-    ${entries.length > journalLimit ? `<div class="center"><button class="btn" data-act="more-journal">Show more (${entries.length - journalLimit} left)</button></div>` : ''}`
+    ${entries.length > journalLimit ? `<div class="center"><button class="btn" data-act="more-journal">${tr('Show more ({n} left)', { n: entries.length - journalLimit })}</button></div>` : ''}`
     : empty('The journal is empty.', 'Press L anywhere to log your first action.', 'quick-log', 'Take action')}`;
 }
 
 /* ---------- calendar ---------- */
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 function journalCalendar() {
   const first = calMonth;
@@ -1364,7 +1478,7 @@ function journalCalendar() {
     const lv = xp === 0 ? 0 : xp < 30 ? 1 : xp < 75 ? 2 : xp < 150 ? 3 : 4;
     const cond = state.conditions[k];
     const dl = deadlines[k] || [];
-    const tip = [`<b>${fmtMD(k)} ${DOW[dt.getDay()]}</b>`, `${xp} XP`, cond && condLabel(cond), ...dl.map(t => '◆ ' + esc(t))].filter(Boolean).join('<br>');
+    const tip = [`<b>${fmtMD(k)} ${dow(dt.getDay())}</b>`, `${xp} XP`, cond && condLabel(cond), ...dl.map(t => '◆ ' + esc(t))].filter(Boolean).join('<br>');
     cells += `<button class="cal-cell h${lv} ${dt.getMonth() !== first.getMonth() ? 'out' : ''} ${k === today ? 'today' : ''} ${k === sel ? 'sel' : ''}" data-act="cal-day" data-id="${k}" data-tip="${esc(tip)}">
       <span class="cc-n">${dt.getDate()}</span>
       ${cond ? `<i class="cc-cond c-${cond}"></i>` : ''}
@@ -1378,17 +1492,17 @@ function journalCalendar() {
     <section class="cal-month">
       <div class="cal-head">
         <button class="vr-arrow" data-act="cal-month" data-dir="-1">◀</button>
-        <b>${MONTHS[first.getMonth()]} <span>${first.getFullYear()}</span></b>
+        <b>${LOC().months[first.getMonth()]} <span>${first.getFullYear()}</span></b>
         <button class="vr-arrow" data-act="cal-month" data-dir="1">▶</button>
       </div>
-      <div class="cal-dows">${['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(d => `<span class="${d === 'SUN' ? 'sun' : d === 'SAT' ? 'sat' : ''}">${d}</span>`).join('')}</div>
+      <div class="cal-dows">${WEEK_ORDER.map(d => `<span class="${d === 0 ? 'sun' : d === 6 ? 'sat' : ''}">${dow(d)}</span>`).join('')}</div>
       <div class="cal-grid">${cells}</div>
     </section>
     <section class="panel cal-day">
-      <div class="tag">${sd.getMonth() + 1}/${sd.getDate()} · ${DOW[sd.getDay()]}</div>
+      <div class="tag">${fmtDate(sd)} · ${dow(sd.getDay())}</div>
       <div class="cd-sum"><b>+${D.byDate[sel] || 0} XP</b>${sc ? `<span class="cond-chip c-${sc}">${condLabel(sc)}</span>` : ''}</div>
-      ${(deadlines[sel] || []).map(t => `<div class="cd-dl">◆ Deadline: ${esc(t)}</div>`).join('')}
-      <div class="j-items">${dayEntries.length ? dayEntries.map(jItem).join('') : '<div class="muted pad">Nothing logged this day.</div>'}</div>
+      ${(deadlines[sel] || []).map(t => `<div class="cd-dl">◆ ${tr('Deadline:')} ${esc(t)}</div>`).join('')}
+      <div class="j-items">${dayEntries.length ? dayEntries.map(jItem).join('') : `<div class="muted pad">${tr('Nothing logged this day.')}</div>`}</div>
     </section>
   </div>`;
 }
@@ -1429,14 +1543,14 @@ function journalCharts() {
     const y = T + ih - f * ih;
     return `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" class="ch-grid"/><text x="${L - 8}" y="${y + 4}" class="ch-ax" text-anchor="end">${Math.round(max * f)}</text>`;
   }).join('');
-  const xLabels = wk.map((d, i) => i % 4 === 1 ? `<text x="${x(i)}" y="${H - 6}" class="ch-ax" text-anchor="middle">${d.getMonth() + 1}/${d.getDate()}</text>` : '').join('');
+  const xLabels = wk.map((d, i) => i % 4 === 1 ? `<text x="${x(i)}" y="${H - 6}" class="ch-ax" text-anchor="middle">${fmtDate(d)}</text>` : '').join('');
 
   // 1) weekly XP — bars with rounded data-ends on the baseline
   const xMax = niceMax(Math.max(...xpW));
   const bw = iw / weeks - 4;
   const bars = xpW.map((v, i) => {
     const h = Math.max(v / xMax * ih, v ? 4 : 0), y = T + ih - h, x0 = x(i) - bw / 2;
-    const tip = esc(`<b>Week of ${fmtMD(wkKey[i])}</b><br>${v} XP`);
+    const tip = esc(`<b>${tr('Week of {date}', { date: fmtMD(wkKey[i]) })}</b><br>${v} XP`);
     return `<g data-tip="${tip}"><rect x="${x0 - 2}" y="${T}" width="${bw + 4}" height="${ih}" class="ch-hit"/>
       ${v ? `<path d="M${x0},${T + ih} V${y + 4} q0,-4 4,-4 h${bw - 8} q4,0 4,4 V${T + ih} Z" class="ch-bar ${i === weeks - 1 ? 'cur' : ''}"/>` : ''}</g>`;
   }).join('');
@@ -1447,7 +1561,7 @@ function journalCharts() {
   const lines = STAT_ORDER.map(k => `<polyline points="${cum[k].map((v, i) => `${x(i).toFixed(1)},${yS(v).toFixed(1)}`).join(' ')}" class="ch-line" stroke="${STAT_COLORS[k]}"/>`).join('');
   const ends = STAT_ORDER.map(k => `<circle cx="${x(weeks - 1)}" cy="${yS(cum[k][weeks - 1])}" r="4.5" fill="${STAT_COLORS[k]}" class="ch-dot"/>`).join('');
   const cols = wk.map((_, i) => {
-    const tip = esc(`<b>Week of ${fmtMD(wkKey[i])}</b><br>` + STAT_ORDER.map(k => `<i class="sw" style="background:${STAT_COLORS[k]}"></i>${STATS[k].name}: ${cum[k][i]}`).join('<br>'));
+    const tip = esc(`<b>${tr('Week of {date}', { date: fmtMD(wkKey[i]) })}</b><br>` + STAT_ORDER.map(k => `<i class="sw" style="background:${STAT_COLORS[k]}"></i>${STATS[k].name}: ${cum[k][i]}`).join('<br>'));
     return `<rect x="${x(i) - iw / weeks / 2}" y="${T}" width="${iw / weeks}" height="${ih}" class="ch-col" data-tip="${tip}"/>`;
   }).join('');
   const legend = STAT_ORDER.map(k => `<span><i class="sw" style="background:${STAT_COLORS[k]}"></i>${STATS[k].name} <b>${cum[k][weeks - 1]}</b></span>`).join('');
@@ -1455,19 +1569,19 @@ function journalCharts() {
   // 3) skills — last 30 days, horizontal bars
   const rows = state.skills.map(s => [s, skill30[s.id] || 0]).sort((a, b) => b[1] - a[1]);
   const kMax = Math.max(1, ...rows.map(r => r[1]));
-  const skillBars = rows.map(([s, v]) => `<div class="hb" data-tip="${esc(`<b>${esc(s.name)}</b><br>${v} XP in 30 days`)}">
+  const skillBars = rows.map(([s, v]) => `<div class="hb" data-tip="${esc(`<b>${esc(s.name)}</b><br>${tr('{n} XP in 30 days', { n: v })}`)}">
     <span class="hb-name">${skillIcon(s)}${esc(s.name)}</span>
     <div class="hb-track"><i style="width:${v / kMax * 100}%"></i></div>
     <b>${v}</b></div>`).join('');
 
   return `<div class="charts">
-    <section class="panel chart"><div class="tag">XP PER WEEK</div>
+    <section class="panel chart"><div class="tag">${tr('XP PER WEEK')}</div>
       <svg viewBox="0 0 ${W} ${H}" class="ch">${grid(xMax)}${bars}${xLabels}</svg></section>
-    <section class="panel chart"><div class="tag">SOCIAL STATS · TOTAL POINTS</div>
+    <section class="panel chart"><div class="tag">${tr('SOCIAL STATS · TOTAL POINTS')}</div>
       <div class="ch-legend">${legend}</div>
       <svg viewBox="0 0 ${W} ${H}" class="ch">${grid(sMax)}${lines}${cols}${ends}${xLabels}</svg></section>
-    <section class="panel chart"><div class="tag">SKILLS · LAST 30 DAYS</div>
-      ${rows.length ? skillBars : '<div class="muted">No skills yet.</div>'}</section>
+    <section class="panel chart"><div class="tag">${tr('SKILLS · LAST 30 DAYS')}</div>
+      ${rows.length ? skillBars : `<div class="muted">${tr('No skills yet.')}</div>`}</section>
   </div>`;
 }
 
@@ -1475,50 +1589,52 @@ function scrSystem() {
   return `${head('system')}
   <div class="sys-grid">
     <section class="panel">
-      <div class="tag">PLAYER</div>
-      <label class="fld"><span>Codename</span><input id="sys-name" maxlength="30" value="${esc(state.player.name)}"></label>
-      <label class="toggle"><input type="checkbox" data-setting="sound" ${state.settings.sound ? 'checked' : ''}><span></span>Sound effects</label>
-      <label class="toggle"><input type="checkbox" data-setting="hotkey" ${state.settings.hotkey !== false ? 'checked' : ''}><span></span><b class="tg-txt">Global shortcut <kbd>${KEY.hotkey}</kbd> opens Take Action from any app</b></label>
-      <label class="toggle"><input type="checkbox" data-setting="openAtLogin" ${state.settings.openAtLogin ? 'checked' : ''}><span></span>Start at login (quietly, ${OS.bg})</label>
+      <div class="tag">${tr('PLAYER')}</div>
+      <label class="fld"><span>${tr('Codename')}</span><input id="sys-name" maxlength="30" value="${esc(state.player.name)}"></label>
+      <label class="fld"><span>${tr('Language')}</span><select data-setting="lang">${[['auto', tr('System language')], ['en', 'English'], ['ru', 'Русский']]
+        .map(([v, l]) => `<option value="${v}" ${(state.settings.lang || 'auto') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="toggle"><input type="checkbox" data-setting="sound" ${state.settings.sound ? 'checked' : ''}><span></span>${tr('Sound effects')}</label>
+      <label class="toggle"><input type="checkbox" data-setting="hotkey" ${state.settings.hotkey !== false ? 'checked' : ''}><span></span><b class="tg-txt">${tr('Global shortcut <kbd>{key}</kbd> opens Take Action from any app', { key: KEY.hotkey })}</b></label>
+      <label class="toggle"><input type="checkbox" data-setting="openAtLogin" ${state.settings.openAtLogin ? 'checked' : ''}><span></span>${tr('Start at login (quietly, {where})', { where: OS.bg })}</label>
     </section>
     <section class="panel morgana">
-      <div class="tag">MORGANA · REMINDERS</div>
-      <label class="toggle"><input type="checkbox" data-setting="remindDailies" ${state.settings.remindDailies !== false ? 'checked' : ''}><span></span>Unfinished dailies at
+      <div class="tag">${tr('MORGANA · REMINDERS')}</div>
+      <label class="toggle"><input type="checkbox" data-setting="remindDailies" ${state.settings.remindDailies !== false ? 'checked' : ''}><span></span>${tr('Unfinished dailies at')}
         <input type="time" class="time-in" data-setting="dailiesAt" value="${esc(state.settings.dailiesAt || '21:00')}"></label>
-      <label class="toggle"><input type="checkbox" data-setting="remindBed" ${state.settings.remindBed !== false ? 'checked' : ''}><span></span>“Let's go to sleep” at
+      <label class="toggle"><input type="checkbox" data-setting="remindBed" ${state.settings.remindBed !== false ? 'checked' : ''}><span></span>${tr("“Let's go to sleep” at")}
         <input type="time" class="time-in" data-setting="bedAt" value="${esc(state.settings.bedAt || '23:30')}"></label>
-      <label class="toggle"><input type="checkbox" data-setting="remindVelvet" ${state.settings.remindVelvet !== false ? 'checked' : ''}><span></span>Velvet Room on Sundays at 19:00</label>
-      <p class="muted">Works while Phantom Life is running — closing the window is fine, ${OS.quit}. Turn on “Start at login” to never miss one.</p>
-      <div class="btn-row"><button class="btn" data-act="test-notify">Test Morgana</button></div>
+      <label class="toggle"><input type="checkbox" data-setting="remindVelvet" ${state.settings.remindVelvet !== false ? 'checked' : ''}><span></span>${tr('Velvet Room on Sundays at 19:00')}</label>
+      <p class="muted">${tr('Works while Phantom Life is running — closing the window is fine, {quit}. Turn on “Start at login” to never miss one.', { quit: OS.quit })}</p>
+      <div class="btn-row"><button class="btn" data-act="test-notify">${tr('Test Morgana')}</button></div>
     </section>
     <section class="panel">
-      <div class="tag">SAVE DATA</div>
-      <p class="muted">Autosaves locally after every action. A daily backup is kept for 14 days.</p>
+      <div class="tag">${tr('SAVE DATA')}</div>
+      <p class="muted">${tr('Autosaves locally after every action. A daily backup is kept for 14 days.')}</p>
       <p class="mono" id="sys-path">…</p>
       <div class="btn-row">
-        <button class="btn" data-act="export">Export save</button>
-        <button class="btn" data-act="import">Import save</button>
-        <button class="btn ghost" data-act="reveal">Show in ${OS.fileMgr}</button>
+        <button class="btn" data-act="export">${tr('Export save')}</button>
+        <button class="btn" data-act="import">${tr('Import save')}</button>
+        <button class="btn ghost" data-act="reveal">${tr('Show in {app}', { app: OS.fileMgr })}</button>
       </div>
     </section>
     <section class="panel">
-      <div class="tag">HOW IT WORKS</div>
+      <div class="tag">${tr('HOW IT WORKS')}</div>
       <ul class="rules">
-        <li><b>Effort</b> — Light +10 · Normal +25 · Heavy +50 · Epic +100 XP.</li>
-        <li><b>Skills</b> level up from XP, and every action also feeds the skill’s <b>social stat</b> (XP ÷ 5).</li>
-        <li><b>Social stats</b> rank up at ${STAT_T.slice(1).join(' / ')} points — just like the game, rank 5 takes real dedication.</li>
-        <li><b>Confidants</b> have 10 ranks. Deeper hangouts build the bond faster.</li>
-        <li><b>Velvet Room</b> — review your week, seal a contract (+50 XP) and pick up to 3 focus skills that earn ×1.5 XP the following week.</li>
-        <li><b>Compendium</b> — personas awaken at milestones. <b>Mementos</b> — Morgana's daily request doubles XP on one skill.</li>
-        <li><b>Shop</b> — every XP also pays ¥${YEN_PER_XP}. Spend it on rewards you define.</li>
-        <li>Made a mistake? Delete it in the <b>Journal</b> — everything recalculates.</li>
-        <li>Keys: <kbd>1</kbd>–<kbd>8</kbd> switch screens · <kbd>${KEY.system}</kbd> System · <kbd>${KEY.hotkey}</kbd> take action from anywhere · <kbd>L</kbd> take action · <kbd>Esc</kbd> close.</li>
+        <li>${tr('<b>Effort</b> — Light +10 · Normal +25 · Heavy +50 · Epic +100 XP.')}</li>
+        <li>${tr('<b>Skills</b> level up from XP, and every action also feeds the skill’s <b>social stat</b> (XP ÷ 5).')}</li>
+        <li>${tr('<b>Social stats</b> rank up at {points} points — just like the game, rank 5 takes real dedication.', { points: STAT_T.slice(1).join(' / ') })}</li>
+        <li>${tr('<b>Confidants</b> have 10 ranks. Deeper hangouts build the bond faster.')}</li>
+        <li>${tr('<b>Velvet Room</b> — review your week, seal a contract (+50 XP) and pick up to 3 focus skills that earn ×1.5 XP the following week.')}</li>
+        <li>${tr('<b>Compendium</b> — personas awaken at milestones. <b>Mementos</b> — Morgana’s daily request doubles XP on one skill.')}</li>
+        <li>${tr('<b>Shop</b> — every XP also pays ¥{yen}. Spend it on rewards you define.', { yen: YEN_PER_XP })}</li>
+        <li>${tr('Made a mistake? Delete it in the <b>Journal</b> — everything recalculates.')}</li>
+        <li>${tr('Keys: <kbd>1</kbd>–<kbd>8</kbd> switch screens · <kbd>{system}</kbd> System · <kbd>{hotkey}</kbd> take action from anywhere · <kbd>L</kbd> take action · <kbd>Esc</kbd> close.', { system: KEY.system, hotkey: KEY.hotkey })}</li>
       </ul>
     </section>
     <section class="panel danger-zone">
-      <div class="tag">DANGER</div>
-      <p class="muted">Wipe everything and start a new game. Export first if you might want it back.</p>
-      <button class="btn danger" data-act="reset">New game</button>
+      <div class="tag">${tr('DANGER')}</div>
+      <p class="muted">${tr('Wipe everything and start a new game. Export first if you might want it back.')}</p>
+      <button class="btn danger" data-act="reset">${tr('New game')}</button>
     </section>
   </div>`;
 }
@@ -1583,32 +1699,35 @@ function igorLines(wk, W, P, rev) {
   const endKey = dkey(W.end) < today ? dkey(W.end) : today;
   const isCur = wk === weekKey(new Date());
   const L = [isCur
-    ? 'Welcome to the Velvet Room. Let us look upon the week that is still unfolding...'
-    : `Welcome to the Velvet Room. Let us look back upon the week of ${b(fmtMD(wk))}.`];
+    ? tr('Welcome to the Velvet Room. Let us look upon the week that is still unfolding...')
+    : tr('Welcome to the Velvet Room. Let us look back upon the week of {date}.', { date: b(fmtMD(wk)) })];
 
   if (!W.actions) {
-    L.push('Hm... not a single action recorded. Even a prisoner paces his cell, Trickster.');
+    L.push(tr('Hm... not a single action recorded. Even a prisoner paces his cell, Trickster.'));
   } else {
+    const xpB = b(W.xp + ' XP');
     if (P.xp > 0) {
       const d = Math.round((W.pace - P.pace) / P.pace * 100);
-      const per = isCur ? ' per day' : '';
-      if (d >= 15) L.push(`You earned ${b(W.xp + ' XP')}, ${b(d + '%')} more${per} than the week before. Your rehabilitation proceeds splendidly.`);
-      else if (d <= -15) L.push(`${b(W.xp + ' XP')} so far, ${b(-d + '%')} less${per} than before. A lull... or the first sign of distortion?`);
-      else L.push(`${b(W.xp + ' XP')}, keeping pace with the week before. Consistency is its own kind of power.`);
+      if (d >= 15) L.push(tr(isCur ? 'You earned {xp}, {pct} more per day than the week before. Your rehabilitation proceeds splendidly.'
+        : 'You earned {xp}, {pct} more than the week before. Your rehabilitation proceeds splendidly.', { xp: xpB, pct: b(d + '%') }));
+      else if (d <= -15) L.push(tr(isCur ? '{xp} so far, {pct} less per day than before. A lull... or the first sign of distortion?'
+        : '{xp} so far, {pct} less than before. A lull... or the first sign of distortion?', { xp: xpB, pct: b(-d + '%') }));
+      else L.push(tr('{xp}, keeping pace with the week before. Consistency is its own kind of power.', { xp: xpB }));
     } else {
-      L.push(`You earned ${b(W.xp + ' XP')} across ${b(W.actions + ' actions')}. A fine beginning.`);
+      L.push(tr('You earned {xp} across {actions}. A fine beginning.', { xp: xpB, actions: b(trn(W.actions, '{n} action', '{n} actions')) }));
     }
-    L.push(`You acted on ${b(W.activeDays + ' of ' + W.elapsed)} days.${W.activeDays === W.elapsed && W.elapsed >= 5 ? ' Not a single day wasted. Remarkable.' : ''}`);
+    L.push(tr('You acted on {days} days.', { days: b(tr('{n} of {all}', { n: W.activeDays, all: W.elapsed })) })
+      + (W.activeDays === W.elapsed && W.elapsed >= 5 ? ' ' + tr('Not a single day wasted. Remarkable.') : ''));
     const [topStat, topVal] = Object.entries(W.stats).sort((a, b2) => b2[1] - a[1])[0];
-    if (topVal > 0) L.push(`Your ${b(STATS[topStat].name)} grew the most (+${topVal}).`);
+    if (topVal > 0) L.push(tr('Your {stat} grew the most (+{n}).', { stat: b(STATS[topStat].name), n: topVal }));
     const topSkill = Object.entries(W.skills).sort((a, b2) => b2[1] - a[1])[0];
-    if (topSkill && skillById(topSkill[0])) L.push(`${b(skillById(topSkill[0]).name)} was your sharpest weapon.`);
+    if (topSkill && skillById(topSkill[0])) L.push(tr('{skill} was your sharpest weapon.', { skill: b(skillById(topSkill[0]).name) }));
   }
 
   if (W.dailyRate !== null && W.actions) {
     const pct = Math.round(W.dailyRate * 100);
-    if (pct >= 80) L.push(`Your daily rituals held firm: ${b(pct + '%')} kept.`);
-    else if (pct < 40) L.push(`Your daily vows slipped. Only ${b(pct + '%')} kept. Perhaps they ask too much... or you, too little.`);
+    if (pct >= 80) L.push(tr('Your daily rituals held firm: {pct} kept.', { pct: b(pct + '%') }));
+    else if (pct < 40) L.push(tr('Your daily vows slipped. Only {pct} kept. Perhaps they ask too much... or you, too little.', { pct: b(pct + '%') }));
   }
 
   const focus = state.reviews[prevWeek(wk)]?.focus || [];
@@ -1616,7 +1735,8 @@ function igorLines(wk, W, P, rev) {
     const s = skillById(id);
     if (!s) continue;
     const xp = W.skills[id] || 0;
-    L.push(xp ? `You swore to focus on ${b(s.name)}, and it received ${b(xp + ' XP')}. A promise kept.` : `You swore to focus on ${b(s.name)}... and did not. Hm hm hm.`);
+    L.push(xp ? tr('You swore to focus on {skill}, and it received {xp}. A promise kept.', { skill: b(s.name), xp: b(xp + ' XP') })
+      : tr('You swore to focus on {skill}... and did not. Hm hm hm.', { skill: b(s.name) }));
   }
 
   const old = s => Math.round((parseKey(endKey) - new Date(s.createdAt || 0)) / 86400000) >= 14;
@@ -1625,37 +1745,43 @@ function igorLines(wk, W, P, rev) {
     .map(s => [s, daysSince(e => s.id in entrySkills(e), endKey)])
     .filter(([, d]) => d === null || d >= 14)
     .slice(0, 2);
-  for (const [s, d] of dusty) L.push(`${b(s.name)} gathers dust${d === null ? ', never once practiced' : `, ${d} days untouched`}.`);
+  for (const [s, d] of dusty) L.push(d === null ? tr('{skill} gathers dust, never once practiced.', { skill: b(s.name) })
+    : trn(d, '{skill} gathers dust, {n} day untouched.', '{skill} gathers dust, {n} days untouched.', { skill: b(s.name) }));
 
   const distant = state.confidants
     .filter(old)
     .map(c => [c, daysSince(e => entryConfs(e).includes(c.id), endKey)])
     .filter(([, d]) => d === null || d >= 14)
     .slice(0, 2);
-  for (const [c, d] of distant) L.push(`You have not seen ${b(c.name)} ${d === null ? 'since you met' : `in ${d} days`}. A bond untended does not grow.`);
+  for (const [c, d] of distant) L.push(d === null ? tr('You have not seen {name} since you met. A bond untended does not grow.', { name: b(c.name) })
+    : trn(d, 'You have not seen {name} in {n} day. A bond untended does not grow.', 'You have not seen {name} in {n} days. A bond untended does not grow.', { name: b(c.name) }));
 
   if (isCur || wk === prevWeek(weekKey(new Date()))) {
     const due = state.quests.filter(q => q.type === 'once' && q.deadline && !questCompletion(q))
       .map(q => [q, daysUntil(q.deadline)]).filter(([, n]) => n >= 0 && n <= 10).sort((a, b2) => a[1] - b2[1])[0];
-    if (due) L.push(`A deadline approaches: ${b(due[0].title)}, ${due[1] === 0 ? 'today' : `in ${due[1]} day${due[1] === 1 ? '' : 's'}`}.`);
+    if (due) L.push(due[1] === 0 ? tr('A deadline approaches: {title}, today.', { title: b(due[0].title) })
+      : trn(due[1], 'A deadline approaches: {title}, in {n} day.', 'A deadline approaches: {title}, in {n} days.', { title: b(due[0].title) }));
     // the open mission whose next stage is due soonest (or already late)
     const step = state.quests.filter(q => !questCompletion(q) && nextStage(q)?.deadline)
       .map(q => [q, nextStage(q), daysUntil(nextStage(q).deadline)]).filter(([, , n]) => n <= 7).sort((a, b2) => a[2] - b2[2])[0];
     if (step) {
       const [q, s, n] = step;
-      L.push(n < 0 ? `${b(s.title)} — a step toward ${b(q.title)} — is ${-n} day${n === -1 ? '' : 's'} late. The path does not walk itself.`
-        : `Your next step toward ${b(q.title)}: ${b(s.title)}, ${n === 0 ? 'due today' : `due in ${n} day${n === 1 ? '' : 's'}`}.`);
+      const v = { step: b(s.title), mission: b(q.title) };
+      L.push(n < 0 ? trn(-n, '{step} — a step toward {mission} — is {n} day late. The path does not walk itself.',
+        '{step} — a step toward {mission} — is {n} days late. The path does not walk itself.', v)
+        : n === 0 ? tr('Your next step toward {mission}: {step}, due today.', v)
+        : trn(n, 'Your next step toward {mission}: {step}, due in {n} day.', 'Your next step toward {mission}: {step}, due in {n} days.', v));
     }
     const behind = state.quests.find(q => missionPace(q) === 'behind');
-    if (behind && !step) L.push(`${b(behind.title)} has fallen behind its pace. Perhaps the next step is smaller than you fear.`);
+    if (behind && !step) L.push(tr('{title} has fallen behind its pace. Perhaps the next step is smaller than you fear.', { title: b(behind.title) }));
   }
 
   const ci = conditionInsight();
   if (ci) L.push(ci);
 
-  L.push(rev
+  L.push(tr(rev
     ? 'Your contract for this week is sealed. Return when the next week ends.'
-    : 'Now then... reflect, and choose where your strength will flow next week.');
+    : 'Now then... reflect, and choose where your strength will flow next week.'));
   return L;
 }
 
@@ -1678,12 +1804,12 @@ function sealContract(f) {
   state.reviews[wk] = { ...existing, ...data, completedAt: existing?.completedAt || now, updatedAt: now };
   delete velvetDraft[wk];
   if (state.log.some(e => e.kind === 'review' && e.week === wk)) {
-    persist(); sfx.ok(); render(); toast('AMENDED', 'The contract has been rewritten');
+    persist(); sfx.ok(); render(); toast(tr('AMENDED'), tr('The contract has been rewritten'));
     return;
   }
-  commit({ kind: 'review', week: wk, xp: 50, statPts: 0, note: `Weekly contract · week of ${fmtMD(wk)}` });
+  commit({ kind: 'review', week: wk, xp: 50, statPts: 0, note: tr('Weekly contract · week of {date}', { date: fmtMD(wk) }) });
   const names = data.focus.map(id => skillById(id)?.name).filter(Boolean);
-  queueRankUp({ kicker: 'Velvet Room', big: 'SEALED!', sub: names.length ? `Focus: ${names.join(' · ')}` : '+50 XP', velvet: true });
+  queueRankUp({ kicker: tr('Velvet Room'), big: tr('SEALED!'), sub: names.length ? tr('Focus: {names}', { names: names.join(' · ') }) : '+50 XP', velvet: true });
 }
 
 function scrVelvet() {
@@ -1699,66 +1825,67 @@ function scrVelvet() {
   const topSkills = Object.entries(W.skills).sort((a, b) => b[1] - a[1]).slice(0, 4);
   const delta = P.xp ? Math.round((W.pace - P.pace) / P.pace * 100) : null;
   const past = Object.keys(state.reviews).sort().reverse();
-  const q = (name, label, ph) => `<label class="fld"><span>${label}</span><textarea name="${name}" rows="4" maxlength="1200" placeholder="${ph}">${esc(val(name))}</textarea></label>`;
+  const q = (name, label, ph) => `<label class="fld"><span>${tr(label)}</span><textarea name="${name}" rows="4" maxlength="1200" placeholder="${tr(ph)}">${esc(val(name))}</textarea></label>`;
 
   return `<div class="velvet">
     ${head('velvet', 'Welcome to the Velvet Room.')}
     <div class="vr-weeknav">
-      <button class="vr-arrow" data-act="vr-week" data-dir="-1" title="Previous week">◀</button>
-      <div class="vr-week"><span>WEEK OF</span><b>${fmtMD(wk)} – ${fmtMD(dkey(W.end))}</b></div>
-      <button class="vr-arrow" data-act="vr-week" data-dir="1" title="Next week" ${wk >= cur ? 'disabled' : ''}>▶</button>
-      <span class="vr-status ${rev ? 'done' : ''}">${rev ? `Appraised · Grade ${esc(rev.grade || '—')}` : 'Awaiting appraisal'}</span>
+      <button class="vr-arrow" data-act="vr-week" data-dir="-1" title="${tr('Previous week')}">◀</button>
+      <div class="vr-week"><span>${tr('WEEK OF')}</span><b>${fmtMD(wk)} – ${fmtMD(dkey(W.end))}</b></div>
+      <button class="vr-arrow" data-act="vr-week" data-dir="1" title="${tr('Next week')}" ${wk >= cur ? 'disabled' : ''}>▶</button>
+      ${W.actions ? `<button class="btn small vr-share" data-act="week-card" data-wk="${wk}">${tr('Share week')}</button>` : ''}
+      <span class="vr-status ${rev ? 'done' : ''}">${rev ? tr('Appraised · Grade {g}', { g: esc(rev.grade || '—') }) : tr('Awaiting appraisal')}</span>
     </div>
 
     <div class="vr-grid">
       <section class="vr-stage">
         <div class="vr-curtain l"></div><div class="vr-curtain r"></div>
-        <div class="vr-igor"><img src="assets/igor.jpg" alt="Igor" draggable="false"></div>
-        <div class="vr-dialog"><div class="vr-name">IGOR</div>
+        <div class="vr-igor"><img src="assets/igor.jpg" alt="${tr('Igor')}" draggable="false"></div>
+        <div class="vr-dialog"><div class="vr-name">${tr('IGOR')}</div>
           ${igorLines(wk, W, P, rev).map((l, i) => `<p style="--d:${(i * 0.35).toFixed(2)}s">${l}</p>`).join('')}
         </div>
       </section>
       <section class="vr-ledger">
-        <div class="vr-tag">LEDGER</div>
+        <div class="vr-tag">${tr('LEDGER')}</div>
         <div class="vr-nums">
-          <div><b>${W.xp}</b><span>XP${delta === null ? '' : `<em title="XP per day vs previous week" class="${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta)}%</em>`}</span></div>
-          <div><b>${W.actions}</b><span>actions</span></div>
-          <div><b>${W.activeDays}/${W.elapsed}</b><span>active days</span></div>
-          <div><b>${W.dailyRate === null ? '—' : Math.round(W.dailyRate * 100) + '%'}</b><span>dailies kept</span></div>
+          <div><b>${W.xp}</b><span>XP${delta === null ? '' : `<em title="${tr('XP per day vs previous week')}" class="${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta)}%</em>`}</span></div>
+          <div><b>${W.actions}</b><span>${tr('actions')}</span></div>
+          <div><b>${W.activeDays}/${W.elapsed}</b><span>${tr('active days')}</span></div>
+          <div><b>${W.dailyRate === null ? '—' : Math.round(W.dailyRate * 100) + '%'}</b><span>${tr('dailies kept')}</span></div>
         </div>
-        <div><div class="vr-sub">STAT GROWTH</div>
+        <div><div class="vr-sub">${tr('STAT GROWTH')}</div>
         ${STAT_ORDER.map(k => `<div class="vr-statbar"><span>${STATS[k].name}</span><div><i style="width:${W.stats[k] / statMax * 100}%"></i></div><b>+${W.stats[k]}</b></div>`).join('')}
         </div>
-        <div><div class="vr-sub">STRONGEST ARTS</div>
-        ${topSkills.length ? topSkills.map(([id, xp]) => { const s = skillById(id); return `<div class="vr-skill"><span>${skillIcon(s)}${esc(s?.name || 'Deleted skill')}</span><b>${xp} XP</b></div>`; }).join('') : '<div class="vr-muted">Nothing yet.</div>'}
+        <div><div class="vr-sub">${tr('STRONGEST ARTS')}</div>
+        ${topSkills.length ? topSkills.map(([id, xp]) => { const s = skillById(id); return `<div class="vr-skill"><span>${skillIcon(s)}${esc(s?.name || tr('Deleted skill'))}</span><b>${xp} XP</b></div>`; }).join('') : `<div class="vr-muted">${tr('Nothing yet.')}</div>`}
         </div>
       </section>
     </div>
 
     <form class="vr-contract" id="vr-form" data-week="${wk}">
       <div class="vr-seal">${rev ? '✓' : '§'}</div>
-      <div class="vr-tag">THE CONTRACT</div>
-      <h2>Reflect, then bind yourself to the week ahead.</h2>
-      <div class="fld"><span>Grade this week</span><div class="vr-grades">${GRADES.map(g => `<label><input type="radio" name="grade" value="${g}" ${grade === g ? 'checked' : ''}><span>${g}</span></label>`).join('')}</div></div>
+      <div class="vr-tag">${tr('THE CONTRACT')}</div>
+      <h2>${tr('Reflect, then bind yourself to the week ahead.')}</h2>
+      <div class="fld"><span>${tr('Grade this week')}</span><div class="vr-grades">${GRADES.map(g => `<label><input type="radio" name="grade" value="${g}" ${grade === g ? 'checked' : ''}><span>${g}</span></label>`).join('')}</div></div>
       <div class="vr-qs">
         ${q('well', 'What went well?', 'Shipped the feature. Slept 8h.')}
         ${q('held', 'What held you back?', 'Doomscrolling after midnight.')}
         ${q('next', 'Next week, I will…', 'Train 4 times. Finish chapter 3.')}
       </div>
-      <div class="fld"><span>Focus arts for next week <i>— up to 3 · they earn ×${FOCUS_MULT} XP</i></span>
+      <div class="fld"><span>${tr('Focus arts for next week <i>— up to 3 · they earn ×{mult} XP</i>', { mult: FOCUS_MULT })}</span>
         <div class="vr-focus">${state.skills.map(s => `<label><input type="checkbox" name="focus" value="${s.id}" ${focusSel.includes(s.id) ? 'checked' : ''}><span>${skillIcon(s)}${esc(s.name)}</span></label>`).join('')}</div>
       </div>
       <div class="vr-actions">
-        <span class="vr-muted">${rev ? `Sealed ${fmtMD(dkey(new Date(rev.completedAt)))}. You may amend it.` : 'Sealing the contract grants +50 XP.'}</span>
-        <button class="btn vr-btn">${rev ? 'Amend contract' : 'Seal the contract'}</button>
+        <span class="vr-muted">${rev ? tr('Sealed {date}. You may amend it.', { date: fmtMD(dkey(new Date(rev.completedAt))) }) : tr('Sealing the contract grants +50 XP.')}</span>
+        <button class="btn vr-btn">${tr(rev ? 'Amend contract' : 'Seal the contract')}</button>
       </div>
     </form>
 
-    ${past.length ? `<section class="vr-archive"><div class="vr-tag">PAST CONTRACTS</div>
+    ${past.length ? `<section class="vr-archive"><div class="vr-tag">${tr('PAST CONTRACTS')}</div>
       ${past.map(k => { const r = state.reviews[k]; return `<button class="vr-past ${k === wk ? 'on' : ''}" data-act="vr-goto" data-week="${k}">
         <b class="g g-${esc(r.grade || 'none')}">${esc(r.grade || '—')}</b>
         <span>${fmtMD(k)} – ${fmtMD(dkey(addDays(parseKey(k), 6)))}</span>
-        <em>${esc((r.next || r.well || 'No notes.').slice(0, 110))}</em></button>`; }).join('')}
+        <em>${esc((r.next || r.well || tr('No notes.')).slice(0, 110))}</em></button>`; }).join('')}
     </section>` : ''}
   </div>`;
 }
@@ -1768,7 +1895,7 @@ document.addEventListener('input', e => {
   if (!f) return;
   if (e.target.name === 'focus' && e.target.checked && f.querySelectorAll('input[name=focus]:checked').length > 3) {
     e.target.checked = false;
-    toast('MAX 3', 'Choose at most three focus arts');
+    toast(tr('MAX 3'), tr('Choose at most three focus arts'));
   }
   velvetDraft[f.dataset.week] = readContract(f);
 });
@@ -1778,19 +1905,97 @@ document.addEventListener('submit', e => {
   sealContract(e.target);
 });
 
+/* ---------- week card: a 1080×1080 image of a week, to share ----------
+   Laid out at 540 CSS px; main.js renders it in a hidden window at 1080 px for Copy / Save.
+   Shows numbers only — the Velvet Room reflections stay private. */
+function weekCardHTML(wk) {
+  const W = weekStats(wk);
+  const days = Array.from({ length: 7 }, (_, i) => dkey(addDays(W.start, i)));
+  const active = new Set(state.log.filter(e => days.includes(e.date) && e.kind !== 'review').map(e => e.date));
+  const top = Object.entries(W.skills).map(([id, xp]) => [skillById(id), xp]).filter(([s]) => s).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const topMax = top.length ? top[0][1] : 1;
+  const rev = state.reviews[wk];
+  const focus = (rev?.focus || []).map(skillById).filter(Boolean);
+  const personas = PERSONAS.filter(p => days.includes(state.compendium[p.id])).length;
+  const missions = state.log.filter(e => days.includes(e.date) && e.kind === 'quest' && state.quests.find(q => q.id === e.questId)?.type === 'once').length;
+  const stages = state.log.filter(e => days.includes(e.date) && e.kind === 'stage').length;
+  const pl = playerLevel(D.total);
+  const isCur = wk === weekKey(new Date());
+  const streak = isCur ? dayStreak() : 0;
+  const extras = [
+    personas && trn(personas, '{n} persona awakened', '{n} personas awakened'),
+    missions && trn(missions, '{n} mission cleared', '{n} missions cleared'),
+    stages && trn(stages, '{n} mission stage', '{n} mission stages'),
+    W.dailyRate > 0 && tr('{pct}% dailies kept', { pct: Math.round(W.dailyRate * 100) }), // a share card brags; 0% stays off it
+  ].filter(Boolean);
+  return `<div class="wk-card">
+    <div class="wk-slash"></div>
+    <div class="wk-brand">PHANTOM LIFE</div>
+    <div class="wk-head">
+      <div class="wk-kicker">${tr('WEEK OF')}</div>
+      <div class="wk-dates">${fmtMD(wk)} – ${fmtMD(dkey(W.end))}</div>
+      <div class="wk-name">${esc(state.player.name)}</div>
+      <div class="wk-lv">LV ${pl.lvl} · ${esc(titleFor(pl.lvl))}</div>
+    </div>
+    <div class="wk-xp"><b>+${W.xp}</b><span>${tr('XP this week')}</span></div>
+    <div class="wk-days">${days.map(k => `<i class="${active.has(k) ? 'on' : ''}">${LOC().pip[parseKey(k).getDay()]}</i>`).join('')}
+      <span>${tr('{n}/7 days', { n: active.size })}${streak > 1 ? ' · ' + tr('{n}-day streak', { n: streak }) : ''}</span></div>
+    ${rev?.grade ? `<div class="wk-grade"><span>${tr('GRADE')}</span><b>${esc(rev.grade)}</b></div>` : ''}
+    <div class="wk-right">
+      <div class="wk-tag">${tr('TOP SKILLS')}</div>
+      ${top.length ? top.map(([s, xp]) => `<div class="wk-sk">${skillBadge(s)}<span>${esc(s.name)}</span><b>+${xp}</b>
+        <div class="wk-bar"><i style="width:${Math.round((xp / topMax) * 100)}%"></i></div></div>`).join('') : `<div class="wk-none">${tr('No skills trained')}</div>`}
+      <div class="wk-tag">${tr('SOCIAL STATS')}</div>
+      <div class="wk-stats">${STAT_ORDER.map(k => `<span class="${W.stats[k] ? 'on' : ''}">${STATS[k].name.slice(0, 4)} <b>+${W.stats[k]}</b></span>`).join('')}</div>
+      ${focus.length ? `<div class="wk-tag">${tr("NEXT WEEK'S FOCUS")}</div><div class="wk-focus">${focus.map(s => `<span>${skillBadge(s)}${esc(s.name)}</span>`).join('')}</div>` : ''}
+    </div>
+    ${extras.length ? `<div class="wk-foot">${extras.map(esc).join(' · ')}</div>` : ''}
+  </div>`;
+}
+
+function openWeekCard(wk) {
+  const W = weekStats(wk);
+  const html = weekCardHTML(wk);
+  const pasteKey = IS_MAC ? '⌘V' : 'Ctrl+V';
+  openModal(`
+    <h2 class="m-title">${ransom(tr('SHARE THE WEEK'), 21)}</h2>
+    <p class="m-sub">${tr('A 1080×1080 image of your week. Numbers only — your Velvet Room notes stay private.')}</p>
+    <div class="wk-preview" role="img" aria-label="${tr('Week of {date}: +{xp} XP over {n} active days', { date: fmtMD(wk), xp: W.xp, n: W.activeDays })}">
+      <div aria-hidden="true">${html}</div></div>
+    <div class="m-actions">
+      <button type="button" class="btn ghost" data-act="close-modal">${tr('Close')}</button>
+      <button type="button" class="btn" id="wk-save">${tr('Save PNG')}</button>
+      <button type="button" class="btn primary" id="wk-copy">${tr('Copy image')}</button>
+    </div>`, root => {
+    const run = async (btn, mode) => {
+      btn.disabled = true;
+      try {
+        const ok = await window.api.weekCard(html, mode, `phantom-life-week-${wk}.png`);
+        if (ok) { sfx.ok(); toast(tr(mode === 'copy' ? 'COPIED' : 'SAVED'), mode === 'copy' ? tr('Paste it anywhere with {key}', { key: pasteKey }) : tr('Week card saved')); }
+      } catch {
+        toast(tr('ERROR'), tr('Could not make the image'));
+      } finally {
+        btn.disabled = false;
+      }
+    };
+    root.querySelector('#wk-copy').onclick = e => run(e.currentTarget, 'copy');
+    root.querySelector('#wk-save').onclick = e => run(e.currentTarget, 'save');
+  });
+}
+
 /* ---------- shop ---------- */
 function rewardModal(id) {
   const r = id ? state.rewards.find(x => x.id === id) : { name: '', price: 500, icon: 'star', once: false };
   openModal(`
-    <h2 class="m-title">${ransom(id ? 'EDIT REWARD' : 'NEW REWARD', 21)}</h2>
+    <h2 class="m-title">${ransom(tr(id ? 'EDIT REWARD' : 'NEW REWARD'), 21)}</h2>
     <form>
-      <label class="fld"><span>Reward</span><input name="name" required maxlength="60" value="${esc(r.name)}" placeholder="Movie night, new headphones…"></label>
-      <label class="fld"><span>Price <i>(¥${YEN_PER_XP} per XP · a normal action ≈ ¥${25 * YEN_PER_XP})</i></span><input name="price" type="number" min="1" step="50" required value="${esc(r.price)}"></label>
-      <div class="fld"><span>Icon</span><div class="icon-grid">${ICON_KEYS.map(k => `<label title="${k}"><input type="radio" name="icon" value="${k}" ${r.icon === k ? 'checked' : ''}><span>${iconSvg(k)}</span></label>`).join('')}</div></div>
-      <label class="toggle"><input type="checkbox" name="once" ${r.once ? 'checked' : ''}><span></span>One-time purchase (a big thing you buy once)</label>
+      <label class="fld"><span>${tr('Reward')}</span><input name="name" required maxlength="60" value="${esc(r.name)}" placeholder="${tr('Movie night, new headphones…')}"></label>
+      <label class="fld"><span>${tr('Price <i>(¥{yen} per XP · a normal action ≈ ¥{normal})</i>', { yen: YEN_PER_XP, normal: 25 * YEN_PER_XP })}</span><input name="price" type="number" min="1" step="50" required value="${esc(r.price)}"></label>
+      <div class="fld"><span>${tr('Icon')}</span><div class="icon-grid">${ICON_KEYS.map(k => `<label title="${tr(k)}"><input type="radio" name="icon" value="${k}" ${r.icon === k ? 'checked' : ''}><span>${iconSvg(k)}</span></label>`).join('')}</div></div>
+      <label class="toggle"><input type="checkbox" name="once" ${r.once ? 'checked' : ''}><span></span>${tr('One-time purchase (a big thing you buy once)')}</label>
       <div class="m-actions">
-        <button type="button" class="btn ghost" data-act="close-modal">Cancel</button>
-        <button class="btn primary">Save</button>
+        <button type="button" class="btn ghost" data-act="close-modal">${tr('Cancel')}</button>
+        <button class="btn primary">${tr('Save')}</button>
       </div>
     </form>`, root => {
     root.querySelector('form').onsubmit = e => {
@@ -1821,11 +2026,11 @@ const sfxCoin = () => beep([988, 1319, 1976], 'square', 0.05, 0.035);
 async function buyReward(id) {
   const r = state.rewards.find(x => x.id === id);
   if (!r) return;
-  if (D.yen < r.price) { toast('NOT ENOUGH ¥', `${fmtYen(r.price - D.yen)} more to go`); return; }
-  if (!await askConfirm('BUY THIS?', `${r.name} for ${fmtYen(r.price)}. You earned it, ${state.player.name}.`, `Buy · ${fmtYen(r.price)}`)) return;
+  if (D.yen < r.price) { toast(tr('NOT ENOUGH ¥'), tr('{yen} more to go', { yen: fmtYen(r.price - D.yen) })); return; }
+  if (!await askConfirm(tr('BUY THIS?'), tr('{name} for {price}. You earned it, {player}.', { name: r.name, price: fmtYen(r.price), player: state.player.name }), tr('Buy · {price}', { price: fmtYen(r.price) }))) return;
   state.purchases.push({ id: uid(), rewardId: r.id, name: r.name, price: r.price, icon: r.icon, ts: new Date().toISOString(), date: dkey() });
   persist(); sfxCoin(); checkCompendium(); render();
-  toast(`-${fmtYen(r.price)}`, `${r.name} · Thank you, come again!`);
+  toast(`-${fmtYen(r.price)}`, `${r.name} · ${tr('Thank you, come again!')}`);
 }
 
 function scrShop() {
@@ -1836,44 +2041,44 @@ function scrShop() {
     const short = r.price - D.yen;
     return `<div class="reward ${owned ? 'owned' : ''} ${short > 0 && !owned ? 'locked' : ''}">
       <div class="sk-tools">
-        <button class="ic" title="Edit" data-act="edit-reward" data-id="${r.id}">✎</button>
-        <button class="ic" title="Delete" data-act="del-reward" data-id="${r.id}">✕</button>
+        <button class="ic" title="${tr('Edit')}" data-act="edit-reward" data-id="${r.id}">✎</button>
+        <button class="ic" title="${tr('Delete')}" data-act="del-reward" data-id="${r.id}">✕</button>
       </div>
       <div class="rw-icon">${iconSvg(r.icon) || iconSvg('star')}</div>
       <div class="rw-name">${esc(r.name)}</div>
       <div class="rw-price">${fmtYen(r.price)}</div>
-      <div class="rw-meta">${r.once ? 'one-time' : count(r.id) ? `bought ×${count(r.id)}` : '&nbsp;'}</div>
-      ${owned ? '<div class="rw-stamp">OWNED</div>'
-        : `<button class="btn ${short > 0 ? 'ghost' : 'primary'} small" data-act="buy" data-id="${r.id}">${short > 0 ? `${fmtYen(short)} to go` : 'Buy'}</button>`}
+      <div class="rw-meta">${r.once ? tr('one-time') : count(r.id) ? tr('bought ×{n}', { n: count(r.id) }) : '&nbsp;'}</div>
+      ${owned ? `<div class="rw-stamp">${tr('OWNED')}</div>`
+        : `<button class="btn ${short > 0 ? 'ghost' : 'primary'} small" data-act="buy" data-id="${r.id}">${short > 0 ? tr('{yen} to go', { yen: fmtYen(short) }) : tr('Buy')}</button>`}
     </div>`;
   }).join('');
   const hist = [...state.purchases].reverse().slice(0, 30);
   return `${head('shop')}
   <div class="wallet">
-    <div class="w-main"><span>WALLET</span><b class="${D.yen < 0 ? 'neg' : ''}">${fmtYen(D.yen)}</b></div>
-    <div class="w-side"><b>+${fmtYen(todayYen)}</b><span>earned today</span></div>
-    <div class="w-side"><b>${fmtYen(D.spent)}</b><span>spent all-time</span></div>
-    <div class="w-side"><b>¥${YEN_PER_XP}</b><span>per XP</span></div>
+    <div class="w-main"><span>${tr('WALLET')}</span><b class="${D.yen < 0 ? 'neg' : ''}">${fmtYen(D.yen)}</b></div>
+    <div class="w-side"><b>+${fmtYen(todayYen)}</b><span>${tr('earned today')}</span></div>
+    <div class="w-side"><b>${fmtYen(D.spent)}</b><span>${tr('spent all-time')}</span></div>
+    <div class="w-side"><b>¥${YEN_PER_XP}</b><span>${tr('per XP')}</span></div>
   </div>
-  <div class="shop-grid">${cards}<button class="skill-add" data-act="add-reward"><b>+</b><span>NEW REWARD</span></button></div>
-  ${hist.length ? `<section class="q-section"><div class="q-head"><h2>Receipts</h2><span>last ${hist.length}</span></div>
+  <div class="shop-grid">${cards}<button class="skill-add" data-act="add-reward"><b>+</b><span>${tr('NEW REWARD')}</span></button></div>
+  ${hist.length ? `<section class="q-section"><div class="q-head"><h2>${tr('Receipts')}</h2><span>${tr('last {n}', { n: hist.length })}</span></div>
     ${hist.map(p => `<div class="j-item receipt">
-      <span class="j-time">${fmtMD(p.date)}</span><span class="j-kind">BOUGHT</span>
+      <span class="j-time">${fmtMD(p.date)}</span><span class="j-kind">${tr('BOUGHT')}</span>
       <span class="j-label">${iconSvg(p.icon)}${esc(p.name)}</span><span class="j-xp">-${fmtYen(p.price)}</span>
-      <button class="ic" data-act="refund" data-id="${p.id}" title="Refund (undo)">✕</button></div>`).join('')}
+      <button class="ic" data-act="refund" data-id="${p.id}" title="${tr('Refund (undo)')}">✕</button></div>`).join('')}
   </section>` : ''}`;
 }
 
 /* ---------- condition ---------- */
 const CONDITIONS = [['great', 'Great'], ['good', 'Good'], ['tired', 'Tired'], ['sick', 'Sick']];
-const condLabel = k => (CONDITIONS.find(c => c[0] === k) || [, ''])[1];
+const condLabel = k => tr((CONDITIONS.find(c => c[0] === k) || [, ''])[1]);
 
 function conditionPanel() {
   const cur = state.conditions[dkey()];
   return `<section class="panel cond">
-    <div class="tag">CONDITION</div>
-    <div class="cond-q">${cur ? `Feeling <b class="c-${cur}">${condLabel(cur)}</b> today.` : 'How do you feel today?'}</div>
-    <div class="cond-opts">${CONDITIONS.map(([k, l]) => `<button class="cond-btn c-${k} ${cur === k ? 'on' : ''}" data-act="set-cond" data-id="${k}">${l}</button>`).join('')}</div>
+    <div class="tag">${tr('CONDITION')}</div>
+    <div class="cond-q">${cur ? tr('Feeling {cond} today.', { cond: `<b class="c-${cur}">${condLabel(cur)}</b>` }) : tr('How do you feel today?')}</div>
+    <div class="cond-opts">${CONDITIONS.map(([k, l]) => `<button class="cond-btn c-${k} ${cur === k ? 'on' : ''}" data-act="set-cond" data-id="${k}">${tr(l)}</button>`).join('')}</div>
   </section>`;
 }
 
@@ -1891,8 +2096,8 @@ function conditionInsight() {
   if (!g) return '';
   const pct = Math.round((g - b) / g * 100);
   return pct >= 15
-    ? `On days you felt tired or sick you earned <b>${pct}% less XP</b>. Rest, too, is part of the heist.`
-    : 'Even on your rough days you kept pace. Hm hm... impressive.';
+    ? tr('On days you felt tired or sick you earned <b>{pct}% less XP</b>. Rest, too, is part of the heist.', { pct })
+    : tr('Even on your rough days you kept pace. Hm hm... impressive.');
 }
 
 /* ---------- mementos requests ---------- */
@@ -1921,15 +2126,15 @@ function requestPanel() {
   const r = todaysRequest();
   if (!r) return '';
   const name = `<b>${skillIcon(r.skill)}${esc(r.skill.name)}</b>`;
-  const text = r.days === null ? `${name} has never been practiced. Today's the day.`
-    : r.days <= 2 ? `Keep ${name} going today. Momentum is everything.`
-    : `${name} hasn't seen action in <b>${r.days} days</b>. Spend any time on it today.`;
+  const text = r.days === null ? tr("{name} has never been practiced. Today's the day.", { name })
+    : r.days <= 2 ? tr('Keep {name} going today. Momentum is everything.', { name })
+    : trn(r.days, "{name} hasn't seen action in <b>{n} day</b>. Spend any time on it today.", "{name} hasn't seen action in <b>{n} days</b>. Spend any time on it today.", { name });
   return `<section class="panel request ${r.done ? 'done' : ''}">
-    <div class="tag">MEMENTOS REQUEST</div>
-    <div class="rq-from">From Morgana</div>
+    <div class="tag">${tr('MEMENTOS REQUEST')}</div>
+    <div class="rq-from">${tr('From Morgana')}</div>
     <div class="rq-text">${text}</div>
-    <div class="rq-foot"><span class="rq-reward">${r.done ? '✓ Cleared · double XP claimed' : 'Reward: ×2 XP on that skill'}</span>
-      ${r.done ? '' : `<button class="btn primary small" data-act="log-skill" data-id="${r.skillId}">Take it on</button>`}</div>
+    <div class="rq-foot"><span class="rq-reward">${tr(r.done ? '✓ Cleared · double XP claimed' : 'Reward: ×2 XP on that skill')}</span>
+      ${r.done ? '' : `<button class="btn primary small" data-act="log-skill" data-id="${r.skillId}">${tr('Take it on')}</button>`}</div>
   </section>`;
 }
 
@@ -2005,8 +2210,8 @@ function checkCompendium(silent = false) {
   for (const p of PERSONAS) if (!state.compendium[p.id] && p.test(c)) { state.compendium[p.id] = dkey(); fresh.push(p); }
   if (!fresh.length) return;
   persist();
-  if (silent) toast('COMPENDIUM', `${fresh.length} persona${fresh.length > 1 ? 's' : ''} awakened`);
-  else fresh.forEach(p => queueRankUp({ kicker: `${arcanaNum(p.arcana)} · ${p.arcana}`, big: 'NEW PERSONA', sub: `${p.name} — ${p.hint}`, persona: true }));
+  if (silent) toast(tr('COMPENDIUM'), trn(fresh.length, '{n} persona awakened', '{n} personas awakened'));
+  else fresh.forEach(p => queueRankUp({ kicker: `${arcanaNum(p.arcana)} · ${tr(p.arcana)}`, big: tr('NEW PERSONA'), sub: `${p.name} — ${tr(p.hint)}`, persona: true }));
 }
 
 function scrCompendium() {
@@ -2014,15 +2219,15 @@ function scrCompendium() {
   const cards = PERSONAS.map(p => {
     const d = state.compendium[p.id];
     return `<div class="pcard ${d ? 'got' : 'locked'}">
-      <div class="pc-arc"><span>${esc(arcanaNum(p.arcana))}</span><em>${esc(p.arcana)}</em></div>
+      <div class="pc-arc"><span>${esc(arcanaNum(p.arcana))}</span><em>${esc(tr(p.arcana))}</em></div>
       <div class="pc-mask">${iconSvg('mask')}</div>
       <div class="pc-name">${d ? esc(p.name) : '???'}</div>
-      <div class="pc-hint">${esc(p.hint)}</div>
-      ${d ? `<div class="pc-date">Awakened ${fmtMD(d)}</div>` : ''}
+      <div class="pc-hint">${esc(tr(p.hint))}</div>
+      ${d ? `<div class="pc-date">${tr('Awakened {date}', { date: fmtMD(d) })}</div>` : ''}
     </div>`;
   }).join('');
   return `${head('compendium', 'I am thou, thou art I.')}
-  <div class="pc-progress"><b>${got}<span> / ${PERSONAS.length}</span></b><div>${bar(got / PERSONAS.length)}<em>personas awakened</em></div></div>
+  <div class="pc-progress"><b>${got}<span> / ${PERSONAS.length}</span></b><div>${bar(got / PERSONAS.length)}<em>${tr('personas awakened')}</em></div></div>
   <div class="pc-grid">${cards}</div>`;
 }
 
@@ -2054,6 +2259,7 @@ const LIFE_AREAS = [
 ].map(([id, name, icon, stat, quests]) => ({ id, name, icon, stat, quests }));
 const areaById = id => LIFE_AREAS.find(a => a.id === id);
 const NG_STEPS = ['Who are you', 'What you train', 'First quests', 'Ready'];
+// Life areas carry English names; the skills and quests made from them are saved in the current language.
 const NG_QUEST_PICKS = 5; // suggested quests checked by default — start small
 
 let ng = null; // the character being created; null outside character creation
@@ -2077,7 +2283,8 @@ function closeNewGame() {
 // Skills as they'll be created: picked life areas (renamable) plus the player's own, in pick order.
 function ngSkills() {
   return ng.picked.map(key => {
-    const base = areaById(key) || ng.custom.find(c => c.key === key);
+    const area = areaById(key);
+    const base = area ? { ...area, name: tr(area.name) } : ng.custom.find(c => c.key === key);
     const name = String(ng.names[key] ?? base.name).trim() || base.name;
     return { key, name, icon: base.icon, stat: base.stat };
   });
@@ -2086,7 +2293,7 @@ function ngSkills() {
 // first suggestion, until NG_QUEST_PICKS are checked.
 function ngQuests() {
   const list = ng.picked.flatMap(key => (areaById(key)?.quests || []).map(([title, type, effort], i) =>
-    ({ key: `${key}-${i}`, skill: key, title: ng.qTitle[`${key}-${i}`] ?? title, type, effort, first: i === 0 })));
+    ({ key: `${key}-${i}`, skill: key, title: ng.qTitle[`${key}-${i}`] ?? tr(title), type, effort, first: i === 0 })));
   let on = list.filter(q => ng.qOn[q.key]).length;
   for (const q of list) if (!(q.key in ng.qOn)) ng.qOn[q.key] = q.first && on++ < NG_QUEST_PICKS;
   return list;
@@ -2101,19 +2308,21 @@ function ngTitleScreen() {
     <div class="ng-drag"></div>
     <div class="ng-title-in">
       <h1 class="ng-logo" tabindex="-1" aria-label="Phantom Life">${ransom('PHANTOM', 7)}<br>${ransom('LIFE', 12)}</h1>
-      <p class="ng-tagline">Your life is the game. Take your time.</p>
-      <nav class="ng-menu" aria-label="Start">
-        <button class="ng-mi" data-act="ng-new" data-autofocus>New game</button>
-        <button class="ng-mi" data-act="ng-load">Load a save file</button>
-        ${ng.fromSystem ? '<button class="ng-mi" data-act="ng-cancel">Back to my game</button>' : ''}
+      <p class="ng-tagline">${tr('Your life is the game. Take your time.')}</p>
+      <nav class="ng-menu" aria-label="${tr('Start')}">
+        <button class="ng-mi" data-act="ng-new" data-autofocus>${tr('New game')}</button>
+        <button class="ng-mi" data-act="ng-load">${tr('Load a save file')}</button>
+        ${ng.fromSystem ? `<button class="ng-mi" data-act="ng-cancel">${tr('Back to my game')}</button>` : ''}
       </nav>
+      <div class="ng-lang" role="group" aria-label="Language / Язык">${[['en', 'English'], ['ru', 'Русский']].map(([v, l]) =>
+        `<button type="button" data-act="ng-lang" data-lang="${v}" aria-pressed="${LANG === v}" class="${LANG === v ? 'on' : ''}" lang="${v}">${l}</button>`).join('')}</div>
     </div>
   </div>`;
 }
 
 function ngStepWho() {
-  return `${ngHead('WHO ARE YOU?', 'Pick a codename — it’s what the game calls you. You can change it later in System.', 17)}
-    <label class="fld ng-name-in"><span>Codename</span>
+  return `${ngHead(tr('WHO ARE YOU?'), tr('Pick a codename — it’s what the game calls you. You can change it later in System.'), 17)}
+    <label class="fld ng-name-in"><span>${tr('Codename')}</span>
       <input id="ng-name" maxlength="30" autocomplete="off" spellcheck="false" placeholder="Joker" value="${esc(ng.name)}" data-autofocus></label>
     <div class="ng-name-preview" id="ng-name-preview" aria-hidden="true">${ransom(ng.name.trim() || 'Joker', 13)}</div>`;
 }
@@ -2121,22 +2330,22 @@ function ngStepWho() {
 function ngStepTrain() {
   const tiles = LIFE_AREAS.map(a => `<label class="ng-tile">
       <input type="checkbox" id="area-${a.id}" name="area" value="${a.id}" ${ng.picked.includes(a.id) ? 'checked' : ''}>
-      <span>${iconSvg(a.icon)}<b>${esc(a.name)}</b><small>${STATS[a.stat].name}</small></span></label>`).join('');
+      <span>${iconSvg(a.icon)}<b>${esc(tr(a.name))}</b><small>${STATS[a.stat].name}</small></span></label>`).join('');
   const mine = ngSkills();
-  return `${ngHead('WHAT WILL YOU TRAIN?', 'Pick the parts of your life you want to grow. Each one becomes a skill that levels up as you log time on it — 3 to 6 is a good start.', 23)}
-    <fieldset class="ng-fs"><legend class="sr-only">Life areas</legend><div class="ng-tiles">${tiles}</div></fieldset>
+  return `${ngHead(tr('WHAT WILL YOU TRAIN?'), tr('Pick the parts of your life you want to grow. Each one becomes a skill that levels up as you log time on it — 3 to 6 is a good start.'), 23)}
+    <fieldset class="ng-fs"><legend class="sr-only">${tr('Life areas')}</legend><div class="ng-tiles">${tiles}</div></fieldset>
     <fieldset class="ng-fs">
-      <legend>Your skills${mine.length ? ` · ${mine.length}` : ''}</legend>
+      <legend>${tr('Your skills')}${mine.length ? ` · ${mine.length}` : ''}</legend>
       ${mine.length ? `<ul class="ng-skills">${mine.map(s => `<li>
           <span class="ng-sk-ico">${skillBadge(s)}</span>
-          <input id="nm-${s.key}" data-ng-name="${s.key}" maxlength="40" value="${esc(s.name)}" aria-label="Name of skill ${esc(s.name)}">
-          <small>feeds ${STATS[s.stat].name}</small>
-          <button type="button" class="ic" data-act="ng-drop" data-key="${s.key}" aria-label="Remove ${esc(s.name)}">✕</button>
-        </li>`).join('')}</ul>` : '<p class="ng-hint">Nothing picked yet — choose above, or add your own.</p>'}
+          <input id="nm-${s.key}" data-ng-name="${s.key}" maxlength="40" value="${esc(s.name)}" aria-label="${tr('Name of skill {name}', { name: esc(s.name) })}">
+          <small>${tr('feeds {stat}', { stat: STATS[s.stat].name })}</small>
+          <button type="button" class="ic" data-act="ng-drop" data-key="${s.key}" aria-label="${tr('Remove {name}', { name: esc(s.name) })}">✕</button>
+        </li>`).join('')}</ul>` : `<p class="ng-hint">${tr('Nothing picked yet — choose above, or add your own.')}</p>`}
       <div class="ng-own">
-        <input id="ng-own-name" maxlength="40" placeholder="Something else? Guitar, Chess, Rust…" aria-label="Your own skill">
-        <select id="ng-own-stat" aria-label="Social stat it feeds">${STAT_ORDER.map(k => `<option value="${k}">${STATS[k].name}</option>`).join('')}</select>
-        <button type="button" class="btn small" data-act="ng-add-own">Add</button>
+        <input id="ng-own-name" maxlength="40" placeholder="${tr('Something else? Guitar, Chess, Rust…')}" aria-label="${tr('Your own skill')}">
+        <select id="ng-own-stat" aria-label="${tr('Social stat it feeds')}">${STAT_ORDER.map(k => `<option value="${k}">${STATS[k].name}</option>`).join('')}</select>
+        <button type="button" class="btn small" data-act="ng-add-own">${tr('Add')}</button>
       </div>
     </fieldset>`;
 }
@@ -2148,26 +2357,26 @@ function ngStepQuests() {
     if (!mine.length) return '';
     return `<fieldset class="ng-fs ng-qgroup"><legend>${skillBadge(s)}${esc(s.name)}</legend>${mine.map(q => `
       <div class="ng-q ${ng.qOn[q.key] ? 'on' : ''}">
-        <label class="ng-check"><input type="checkbox" id="q-${q.key}" name="q" value="${q.key}" ${ng.qOn[q.key] ? 'checked' : ''}><span></span><span class="sr-only">Take quest: ${esc(q.title)}</span></label>
-        <input class="ng-qt" id="qt-${q.key}" data-ng-qt="${q.key}" maxlength="80" value="${esc(q.title)}" aria-label="Quest title">
-        <small class="ng-qtype">${q.type === 'daily' ? 'Daily' : 'Weekly'}</small>
+        <label class="ng-check"><input type="checkbox" id="q-${q.key}" name="q" value="${q.key}" ${ng.qOn[q.key] ? 'checked' : ''}><span></span><span class="sr-only">${tr('Take quest: {title}', { title: esc(q.title) })}</span></label>
+        <input class="ng-qt" id="qt-${q.key}" data-ng-qt="${q.key}" maxlength="80" value="${esc(q.title)}" aria-label="${tr('Quest title')}">
+        <small class="ng-qtype">${tr(q.type === 'daily' ? 'Daily' : 'Weekly')}</small>
       </div>`).join('')}</fieldset>`;
   }).join('');
   const ownOnly = ng.picked.some(k => !areaById(k));
-  return `${ngHead('FIRST QUESTS', 'Habits that pay XP each time you tick them off. Start small — you can add more on the Quests screen any time.', 29)}
-    ${groups || '<p class="ng-hint">No suggestions for your own skills — add quests for them on the Quests screen.</p>'}
-    ${groups && ownOnly ? '<p class="ng-hint">Your own skills get their quests on the Quests screen.</p>' : ''}`;
+  return `${ngHead(tr('FIRST QUESTS'), tr('Habits that pay XP each time you tick them off. Start small — you can add more on the Quests screen any time.'), 29)}
+    ${groups || `<p class="ng-hint">${tr('No suggestions for your own skills — add quests for them on the Quests screen.')}</p>`}
+    ${groups && ownOnly ? `<p class="ng-hint">${tr('Your own skills get their quests on the Quests screen.')}</p>` : ''}`;
 }
 
 function ngStepReady() {
   const sk = ngSkills().length, qs = ngChosenQuests().length;
-  return `${ngHead('READY?', 'Morgana nudges you when dailies are still open and when it’s time for bed. Change these any time in System.', 31)}
+  return `${ngHead(tr('READY?'), tr('Morgana nudges you when dailies are still open and when it’s time for bed. Change these any time in System.'), 31)}
     <div class="ng-ready">
-      <label class="fld"><span>Dailies reminder</span><input type="time" id="ng-dailies" value="${esc(ng.dailiesAt)}"></label>
-      <label class="fld"><span>Bedtime</span><input type="time" id="ng-bed" value="${esc(ng.bedAt)}"></label>
+      <label class="fld"><span>${tr('Dailies reminder')}</span><input type="time" id="ng-dailies" value="${esc(ng.dailiesAt)}"></label>
+      <label class="fld"><span>${tr('Bedtime')}</span><input type="time" id="ng-bed" value="${esc(ng.bedAt)}"></label>
     </div>
-    <p class="ng-sum">You start with <b>${sk} skill${sk === 1 ? '' : 's'}</b> and <b>${qs} quest${qs === 1 ? '' : 's'}</b>.</p>
-    <p class="ng-first">First move: log something you did today.</p>`;
+    <p class="ng-sum">${tr('You start with {skills} and {quests}.', { skills: `<b>${trn(sk, '{n} skill', '{n} skills')}</b>`, quests: `<b>${trn(qs, '{n} quest', '{n} quests')}</b>` })}</p>
+    <p class="ng-first">${tr('First move: log something you did today.')}</p>`;
 }
 
 // The live character card in the side panel.
@@ -2175,38 +2384,38 @@ function ngCard() {
   const sk = ngSkills();
   const shown = sk.slice(0, 7);
   const qs = ng.step >= 3 ? ngChosenQuests().length : null;
-  return `<div class="tag">PLAYER</div>
+  return `<div class="tag">${tr('PLAYER')}</div>
     <div class="ng-card-name" id="ng-card-name">${ransom(ng.name.trim() || 'Joker', 13)}</div>
-    <div class="ng-card-lv">LV 1 · ${esc(TITLES[0][1])}</div>
+    <div class="ng-card-lv">LV 1 · ${esc(titleFor(1))}</div>
     <ul class="ng-card-sk">${shown.length ? shown.map(s => `<li>${skillBadge(s)}<span>${esc(s.name)}</span></li>`).join('')
-      : '<li class="ng-card-empty">No skills yet</li>'}${sk.length > shown.length ? `<li class="ng-card-more">+${sk.length - shown.length} more</li>` : ''}</ul>
+      : `<li class="ng-card-empty">${tr('No skills yet')}</li>`}${sk.length > shown.length ? `<li class="ng-card-more">${tr('+{n} more', { n: sk.length - shown.length })}</li>` : ''}</ul>
     <div class="ng-card-stats">${STAT_ORDER.map(k => {
       const n = sk.filter(s => s.stat === k).length;
       return `<span class="${n ? 'on' : ''}">${STATS[k].name}${n ? ` ×${n}` : ''}</span>`;
     }).join('')}</div>
-    ${qs === null ? '' : `<div class="ng-card-q">${qs} quest${qs === 1 ? '' : 's'}</div>`}`;
+    ${qs === null ? '' : `<div class="ng-card-q">${trn(qs, '{n} quest', '{n} quests')}</div>`}`;
 }
 
 function ngWizard() {
   const steps = NG_STEPS.map((label, i) => {
     const n = i + 1, cur = n === ng.step;
     return `<li ${cur ? 'aria-current="step"' : ''}><button type="button" class="ng-step ${cur ? 'on' : ''}" data-act="ng-goto" data-step="${n}"
-      ${n > ng.reached ? 'disabled' : ''} style="--i:${i}"><b>${n}</b><span>${label}</span></button></li>`;
+      ${n > ng.reached ? 'disabled' : ''} style="--i:${i}"><b>${n}</b><span>${tr(label)}</span></button></li>`;
   }).join('');
   const body = [null, ngStepWho, ngStepTrain, ngStepQuests, ngStepReady][ng.step]();
   return `<div class="ng ng-wizard" role="dialog" aria-modal="true" aria-labelledby="ng-h">
     <div class="ng-drag"></div>
     <aside class="ng-side">
       <div class="side-bg"></div>
-      <ol class="ng-steps" aria-label="Character creation">${steps}</ol>
+      <ol class="ng-steps" aria-label="${tr('Character creation')}">${steps}</ol>
       <div class="ng-card" id="ng-card">${ngCard()}</div>
     </aside>
     <form class="ng-main" id="ng-form" novalidate>
       <div class="ng-body">${body}</div>
       ${ng.error ? `<p class="ng-error" role="alert">${esc(ng.error)}</p>` : ''}
       <div class="ng-nav">
-        <button type="button" class="btn ghost" data-act="ng-back">Back</button>
-        <button type="submit" class="btn primary">${ng.step === 4 ? 'Start' : 'Next'} <kbd>Enter</kbd></button>
+        <button type="button" class="btn ghost" data-act="ng-back">${tr('Back')}</button>
+        <button type="submit" class="btn primary">${tr(ng.step === 4 ? 'Start' : 'Next')} <kbd>Enter</kbd></button>
       </div>
     </form>
   </div>`;
@@ -2238,7 +2447,7 @@ function ngSync() {
 function ngNext() {
   ngSync();
   ng.error = '';
-  if (ng.step === 2 && !ng.picked.length) { ng.error = 'Pick at least one thing to train.'; renderNewGame(); return; }
+  if (ng.step === 2 && !ng.picked.length) { ng.error = tr('Pick at least one thing to train.'); renderNewGame(); return; }
   if (ng.step === 4) { finishNewGame(); return; }
   ng.step++;
   ng.reached = Math.max(ng.reached, ng.step);
@@ -2262,6 +2471,7 @@ function ngAddOwn() {
 function finishNewGame() {
   const fresh = defaultState();
   if (ng.fromSystem) fresh.settings = { ...state.settings }; // keep hotkey / login / sound choices
+  fresh.settings.lang = state.settings.lang; // picked on the title screen
   fresh.settings.dailiesAt = ng.dailiesAt;
   fresh.settings.bedAt = ng.bedAt;
   fresh.player = { name: ng.name.trim() || 'Joker', createdAt: new Date().toISOString() };
@@ -2274,29 +2484,30 @@ function finishNewGame() {
   screen = '';
   go('status');
   sfx.rank();
-  toast(`WELCOME, ${state.player.name.toUpperCase()}`, 'Your story starts now');
+  toast(tr('WELCOME, {name}', { name: state.player.name.toUpperCase() }), tr('Your story starts now'));
   setTimeout(() => { if (!ng) openQuickLog(); }, 600);
 }
 
 // Asks for a save file and checks it looks like one. Returns the data, or null.
 async function pickSaveFile() {
   let data;
-  try { data = await window.api.importSave(); } catch { toast('ERROR', 'That file is not valid JSON'); return null; }
+  try { data = await window.api.importSave(); } catch { toast(tr('ERROR'), tr('That file is not valid JSON')); return null; }
   if (!data) return null;
-  if (!Array.isArray(data.log) || !Array.isArray(data.skills)) { toast('ERROR', 'Not a Phantom Life save'); return null; }
+  if (!Array.isArray(data.log) || !Array.isArray(data.skills)) { toast(tr('ERROR'), tr('Not a Phantom Life save')); return null; }
   return data;
 }
 
 async function ngLoad() {
   const data = await pickSaveFile();
   if (!data || !ng) return;
-  if (ng.fromSystem && !await askConfirm('LOAD SAVE?', `This replaces your current progress with the imported save (${data.log.length} actions).`, 'Load')) return;
+  if (ng.fromSystem && !await askConfirm(tr('LOAD SAVE?'), trn(data.log.length, 'This replaces your current progress with the imported save ({n} action).', 'This replaces your current progress with the imported save ({n} actions).'), tr('Load'))) return;
   state = normalize(data);
+  applyLanguage();
   persist();
   closeNewGame();
   screen = '';
   go('status');
-  toast('LOADED', `Welcome back, ${state.player.name}`);
+  toast(tr('LOADED'), tr('Welcome back, {name}', { name: state.player.name }));
 }
 
 /* ---------- render ---------- */
@@ -2307,8 +2518,10 @@ function renderSide() {
   $('#side').innerHTML = `
     <div class="side-bg"></div>
     <div class="cal">
-      <div class="cal-md"><span class="cal-m">${now.getMonth() + 1}</span><span class="cal-slash">/</span><span class="cal-d">${now.getDate()}</span></div>
-      <div class="cal-dow ${dw === 0 ? 'sun' : dw === 6 ? 'sat' : ''}">${DOW[dw]}</div>
+      <div class="cal-md">${LANG === 'ru' // day first in Russian
+        ? `<span class="cal-m">${now.getDate()}</span><span class="cal-slash">/</span><span class="cal-d">${pad(now.getMonth() + 1)}</span>`
+        : `<span class="cal-m">${now.getMonth() + 1}</span><span class="cal-slash">/</span><span class="cal-d">${now.getDate()}</span>`}</div>
+      <div class="cal-dow ${dw === 0 ? 'sun' : dw === 6 ? 'sat' : ''}">${dow(dw)}</div>
       <div class="cal-tod">${timeOfDay(now.getHours())}</div>
     </div>
     <nav class="menu">${MENU().map((s, i) => `
@@ -2317,14 +2530,14 @@ function renderSide() {
       </button>`).join('')}
     </nav>
     <div class="side-bottom">
-      ${pendingReviewWeek() && screen !== 'velvet' ? '<button class="vr-badge" data-act="go" data-id="velvet"><span>🦋</span>The Velvet Room awaits</button>' : ''}
+      ${pendingReviewWeek() && screen !== 'velvet' ? `<button class="vr-badge" data-act="go" data-id="velvet"><span>🦋</span>${tr('The Velvet Room awaits')}</button>` : ''}
       ${timerPanel()}
-      <button class="act-btn" data-act="quick-log"><span>TAKE ACTION</span><kbd>L</kbd></button>
+      <button class="act-btn" data-act="quick-log"><span>${tr('TAKE ACTION')}</span><kbd>L</kbd></button>
     </div>
     <div class="side-foot">
       <div><b>${esc(state.player.name)}</b><span>LV ${pl.lvl} · ${esc(titleFor(pl.lvl))}</span></div>
-      <button class="side-wallet" data-act="go" data-id="shop" title="Shop">${fmtYen(D ? D.yen : 0)}</button>
-      <button class="side-gear ${screen === 'system' ? 'on' : ''}" data-act="go" data-id="system" title="System (${KEY.system})">${iconSvg('gear')}</button>
+      <button class="side-wallet" data-act="go" data-id="shop" title="${tr('Shop')}">${fmtYen(D ? D.yen : 0)}</button>
+      <button class="side-gear ${screen === 'system' ? 'on' : ''}" data-act="go" data-id="system" title="${tr('System')} (${KEY.system})" aria-label="${tr('System')}">${iconSvg('gear')}</button>
     </div>`;
 }
 
@@ -2367,7 +2580,9 @@ const ACTIONS = {
   'del-skill': async ds => {
     const s = skillById(ds.id);
     const linked = state.quests.filter(q => q.target === 'skill:' + s.id);
-    if (!await askConfirm('DELETE SKILL?', `"${s.name}" will be removed${linked.length ? ` along with ${linked.length} linked quest(s)` : ''}. Social stat points you earned stay.`, 'Delete')) return;
+    if (!await askConfirm(tr('DELETE SKILL?'), (linked.length
+      ? trn(linked.length, '“{name}” will be removed along with {n} linked quest.', '“{name}” will be removed along with {n} linked quests.', { name: s.name })
+      : tr('“{name}” will be removed.', { name: s.name })) + ' ' + tr('Social stat points you earned stay.'), tr('Delete'))) return;
     state.skills = state.skills.filter(x => x.id !== s.id);
     state.quests = state.quests.filter(q => !linked.includes(q));
     persist(); sfx.back(); render();
@@ -2378,8 +2593,8 @@ const ACTIONS = {
   'timer-resume': () => resumeTimer(),
   'timer-stop': () => stopTimer(),
   'timer-discard': async () => {
-    if (!await askConfirm('DISCARD TIMER?', `${state.timer.label} · ${fmtClock(timerMs())} won’t be logged.`, 'Discard')) return;
-    clearTimer(); sfx.back(); toast('TIMER DISCARDED', '');
+    if (!await askConfirm(tr('DISCARD TIMER?'), tr('{label} · {clock} won’t be logged.', { label: state.timer.label, clock: fmtClock(timerMs()) }), tr('Discard'))) return;
+    clearTimer(); sfx.back(); toast(tr('TIMER DISCARDED'), '');
   },
   'log-skill': ds => openQuickLog('skill:' + ds.id),
   'add-quest': ds => questModal(null, ds.type),
@@ -2387,7 +2602,7 @@ const ACTIONS = {
   'edit-quest': ds => questModal(ds.id),
   'del-quest': async ds => {
     const q = state.quests.find(x => x.id === ds.id);
-    if (!await askConfirm('DELETE QUEST?', `"${q.title}" will be removed. XP already earned stays in your journal.`, 'Delete')) return;
+    if (!await askConfirm(tr('DELETE QUEST?'), tr('“{title}” will be removed. XP already earned stays in your journal.', { title: q.title }), tr('Delete'))) return;
     state.quests = state.quests.filter(x => x.id !== q.id);
     persist(); sfx.back(); render();
   },
@@ -2396,13 +2611,15 @@ const ACTIONS = {
   hangout: ds => hangoutModal(ds.id),
   'del-conf': async ds => {
     const c = confById(ds.id);
-    if (!await askConfirm('END THIS BOND?', `${c.name} will be removed from your confidants. Their journal entries stay.`, 'Remove')) return;
+    if (!await askConfirm(tr('END THIS BOND?'), tr('{name} will be removed from your confidants. Their journal entries stay.', { name: c.name }), tr('Remove'))) return;
     state.confidants = state.confidants.filter(x => x.id !== c.id);
     persist(); sfx.back(); render();
   },
+  'edit-entry': ds => entryModal(ds.id),
+  'week-card': ds => openWeekCard(ds.wk),
   'del-entry': async ds => {
     const e = state.log.find(x => x.id === ds.id);
-    if (!await askConfirm('UNDO THIS?', `Remove "${entryLabel(e)}" (+${e.xp} XP) from ${e.date}? Levels and ranks recalculate.`, 'Remove')) return;
+    if (!await askConfirm(tr('UNDO THIS?'), tr('Remove “{label}” (+{xp} XP) from {date}? Levels and ranks recalculate.', { label: entryLabel(e), xp: e.xp, date: fmtMD(e.date) }), tr('Remove'))) return;
     state.log = state.log.filter(x => x.id !== e.id);
     persist(); sfx.back(); render();
   },
@@ -2417,21 +2634,21 @@ const ACTIONS = {
   'edit-reward': ds => rewardModal(ds.id),
   'del-reward': async ds => {
     const r = state.rewards.find(x => x.id === ds.id);
-    if (!await askConfirm('REMOVE REWARD?', `"${r.name}" will leave the shop. Past receipts stay.`, 'Remove')) return;
+    if (!await askConfirm(tr('REMOVE REWARD?'), tr('“{name}” will leave the shop. Past receipts stay.', { name: r.name }), tr('Remove'))) return;
     state.rewards = state.rewards.filter(x => x.id !== r.id);
     persist(); sfx.back(); render();
   },
   buy: ds => buyReward(ds.id),
   refund: async ds => {
     const p = state.purchases.find(x => x.id === ds.id);
-    if (!await askConfirm('REFUND?', `Undo buying "${p.name}" and get ${fmtYen(p.price)} back.`, 'Refund')) return;
+    if (!await askConfirm(tr('REFUND?'), tr('Undo buying “{name}” and get {price} back.', { name: p.name, price: fmtYen(p.price) }), tr('Refund'))) return;
     state.purchases = state.purchases.filter(x => x.id !== p.id);
     persist(); sfx.back(); render();
   },
   'test-notify': async () => {
     const r = await window.api.testNotify();
-    if (r === 'scheduled') toast('IN 5 SECONDS', 'Switch to another app to see the banner');
-    else toast('NO NOTIFICATIONS', OS.notifSettings);
+    if (r === 'scheduled') toast(tr('IN 5 SECONDS'), tr('Switch to another app to see the banner'));
+    else toast(tr('NO NOTIFICATIONS'), OS.notifSettings);
   },
   'set-cond': ds => {
     const k = dkey();
@@ -2442,19 +2659,20 @@ const ACTIONS = {
   'cal-month': ds => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + Number(ds.dir), 1); sfx.nav(); render(); },
   'cal-day': ds => { calDay = ds.id; render(); },
   'more-journal': () => { journalLimit += 60; render(); },
-  export: async () => { if (await window.api.exportSave(state)) toast('SAVED', 'Export written'); },
+  export: async () => { if (await window.api.exportSave(state)) toast(tr('SAVED'), tr('Export written')); },
   import: async () => {
     const data = await pickSaveFile();
     if (!data) return;
-    if (!await askConfirm('LOAD SAVE?', `This replaces your current progress with the imported save (${data.log.length} actions).`, 'Load')) return;
-    state = normalize(data); persist(); render(); toast('LOADED', 'Welcome back');
+    if (!await askConfirm(tr('LOAD SAVE?'), trn(data.log.length, 'This replaces your current progress with the imported save ({n} action).', 'This replaces your current progress with the imported save ({n} actions).'), tr('Load'))) return;
+    state = normalize(data); applyLanguage(); persist(); render(); toast(tr('LOADED'), tr('Welcome back'));
   },
   reveal: () => window.api.revealSave(),
   reset: async () => {
-    if (!await askConfirm('NEW GAME?', 'You’ll create a new character. Your current progress is replaced when you press Start — until then you can go back. Export it first if you might want it later.', 'Continue')) return;
+    if (!await askConfirm(tr('NEW GAME?'), tr('You’ll create a new character. Your current progress is replaced when you press Start — until then you can go back. Export it first if you might want it later.'), tr('Continue'))) return;
     openNewGame(true);
   },
   // character creation
+  'ng-lang': ds => { state.settings.lang = ds.lang; applyLanguage(); sfx.nav(); renderNewGame(); render(); },
   'ng-new': () => { ng.step = 1; sfx.nav(); renderNewGame(true); },
   'ng-load': () => ngLoad(),
   'ng-cancel': () => { closeNewGame(); sfx.back(); render(); },
@@ -2493,13 +2711,14 @@ document.addEventListener('change', e => {
   }
   if (e.target.id === 'sys-name') {
     state.player.name = e.target.value.trim() || 'Joker';
-    persist(); render(); toast('CODENAME SET', state.player.name);
+    persist(); render(); toast(tr('CODENAME SET'), state.player.name);
   }
   const key = e.target.dataset && e.target.dataset.setting;
   if (key) {
     state.settings[key] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     persist(); sfx.ok();
-    if (key === 'hotkey') window.api.setHotkey(e.target.checked).then(ok => { if (e.target.checked && !ok) toast('SHORTCUT TAKEN', `${KEY.hotkey} is used by another app`); });
+    if (key === 'lang') { applyLanguage(); render(); $('#screen [data-setting=lang]')?.focus(); }
+    if (key === 'hotkey') window.api.setHotkey(e.target.checked).then(ok => { if (e.target.checked && !ok) toast(tr('SHORTCUT TAKEN'), tr('{key} is used by another app', { key: KEY.hotkey })); });
     if (key === 'openAtLogin') window.api.setLogin(e.target.checked);
   }
 });
@@ -2599,6 +2818,7 @@ window.__demoRankUp = () => queueRankUp({ kicker: 'Knowledge', big: 'RANK UP!', 
 (async function boot() {
   const raw = await window.api.load();
   state = normalize(raw);
+  applyLanguage(!!raw); // first launch: nothing is saved before character creation's Start
   checkCompendium(true);
   render();
   $('#screen').classList.add('enter');
