@@ -1357,6 +1357,14 @@ body.ng-open #app, body.ng-open .dragbar { visibility: hidden; }
 }
 .ng-mi:hover, .ng-mi:focus-visible { color: var(--black); text-shadow: none; outline: none; }
 .ng-mi:hover::before, .ng-mi:focus-visible::before { transform: scaleX(1); }
+/* language switch under the title menu */
+.ng-lang { display: flex; gap: 6px; margin-top: 40px; transform: rotate(-2deg); }
+.ng-lang button {
+  background: var(--black); border: 2px solid var(--white); color: var(--white); padding: 5px 14px;
+  font: italic 900 14px var(--display); letter-spacing: 1px; text-transform: uppercase;
+}
+.ng-lang button.on { background: var(--white); color: var(--black); }
+.ng-lang button:hover:not(.on), .ng-lang button:focus-visible { background: var(--red); color: var(--on-red); outline: none; }
 @keyframes ngIn { from { opacity: 0; transform: translateY(18px) rotate(-3deg); } }
 
 /* wizard: red side panel with steps + live character card, form on the right */
