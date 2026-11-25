@@ -1,0 +1,59 @@
+<!doctype html>
+<!-- The macOS installer window's background, 540×380. scripts/make-dmg-background.js renders it to
+     build/installer/dmg-background.png (+ @2x); electron-builder merges the two into a Retina TIFF.
+     Finder draws the app icon at (135, 190) and the Applications link at (405, 190) — see "dmg" in
+     package.json — and writes their names in dark text below them, so each sits on a cream card. -->
+<html><head><meta charset="utf-8"><style>
+html, body { margin: 0; overflow: hidden; background: #0b0b0b; }
+.bg {
+  position: relative; width: 540px; height: 380px; overflow: hidden;
+  background: radial-gradient(circle at 1px 1px, rgba(255,255,255,.06) 1px, transparent 1.5px) 0 0 / 7px 7px, #0b0b0b;
+}
+.slash {
+  position: absolute; left: 150px; top: -60px; width: 250px; height: 520px; transform: skewX(-18deg);
+  background:
+    radial-gradient(circle at 2px 2px, rgba(0,0,0,.24) 1.4px, transparent 2px) 0 0 / 9px 9px,
+    linear-gradient(160deg, #ff2a3d, #e5001c 45%, #9c0012);
+}
+.shard { position: absolute; right: -20px; bottom: -20px; width: 230px; height: 90px; background: #1d1d1d;
+  clip-path: polygon(14% 0, 100% 30%, 86% 100%, 0 100%); }
+
+/* ransom-note title */
+.word { position: absolute; left: 26px; top: 22px; display: flex; font-size: 34px; transform: rotate(-4deg); }
+.l { display: inline-grid; place-items: center; padding: 0 5px 2px; margin-right: -1px; line-height: 1.02; box-shadow: 3px 3px 0 #0b0b0b; }
+.l:nth-child(2n) { transform: rotate(3deg) translateY(-2px); }
+.l:nth-child(3n) { transform: rotate(-4deg) translateY(1px); }
+.sp { width: 12px; }
+.w { background: #f4f2ec; color: #0b0b0b; font-family: Georgia, serif; font-weight: 900; }
+.b { background: #0b0b0b; color: #f4f2ec; font: italic 900 1em Impact, "Arial Narrow", sans-serif; outline: 2px solid #f4f2ec; outline-offset: -2px; }
+.r { background: #e5001c; color: #fff; font: 900 1em Impact, "Arial Narrow", sans-serif; outline: 2px solid #0b0b0b; outline-offset: -2px; }
+.t { background: #f4f2ec; color: #e5001c; font-family: "Courier New", monospace; font-weight: 700; }
+
+/* cards under the two icons (icon centre at y 190, label underneath) */
+.card-wrap { position: absolute; top: 118px; filter: drop-shadow(7px 7px 0 #0b0b0b); } /* clip-path would cut a box-shadow */
+.card-wrap.app { left: 57px; transform: rotate(-3deg); }
+.card-wrap.apps { left: 327px; transform: rotate(2.5deg); }
+.card { position: relative; width: 156px; height: 168px; background: #f4f2ec; clip-path: polygon(3% 2%, 100% 0, 97% 100%, 0 97%); }
+.card::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: #e5001c; }
+
+/* the arrow between them */
+.arrow { position: absolute; left: 222px; top: 168px; width: 96px; height: 44px; transform: rotate(-4deg);
+  background: #0b0b0b; clip-path: polygon(0 28%, 62% 28%, 62% 0, 100% 50%, 62% 100%, 62% 72%, 0 72%); }
+.arrow i { position: absolute; inset: 5px 7px 5px 3px; background: #f4f2ec;
+  clip-path: polygon(0 32%, 63% 32%, 63% 6%, 97% 50%, 63% 94%, 63% 68%, 0 68%); }
+.drag { position: absolute; left: 214px; top: 222px; width: 112px; text-align: center; transform: rotate(-4deg);
+  font: italic 900 17px Impact, "Arial Narrow", sans-serif; letter-spacing: 1px; color: #f4f2ec; text-shadow: 2px 2px 0 #0b0b0b; }
+
+.tag { position: absolute; right: 26px; bottom: 22px; transform: rotate(-3deg);
+  font: italic 900 15px Impact, "Arial Narrow", sans-serif; letter-spacing: 2px; color: #ffe14a; text-shadow: 2px 2px 0 #0b0b0b; }
+</style></head>
+<body>
+<div class="bg">
+  <div class="slash"></div><div class="shard"></div>
+  <div class="word"><span class="l w">P</span><span class="l r">H</span><span class="l b">A</span><span class="l t">N</span><span class="l w">T</span><span class="l r">O</span><span class="l b">M</span><span class="sp"></span><span class="l t">L</span><span class="l w">I</span><span class="l r">F</span><span class="l b">E</span></div>
+  <div class="card-wrap app"><div class="card"></div></div><div class="card-wrap apps"><div class="card"></div></div>
+  <div class="arrow"><i></i></div>
+  <div class="drag">DRAG</div>
+  <div class="tag">TAKE YOUR TIME</div>
+</div>
+</body></html>

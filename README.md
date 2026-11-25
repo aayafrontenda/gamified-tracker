@@ -83,13 +83,22 @@ tray icon.
 The splash is drawn in `build/installer/splash.html`; after changing it, run `npm run splash` to
 regenerate `build/installer/loading.gif`.
 
-**macOS**
+**macOS** (Apple Silicon)
 
 ```bash
-npm run install_app
+npm run package:mac
+open "dist/Phantom Life 1.0.0 arm64.dmg"
 ```
 
-Builds `Phantom Life.app` and copies it into `/Applications`.
+Builds a disk image: drag Phantom Life onto Applications. The image is a single file you can pass to
+someone else. It is ad-hoc signed, not notarized: on another Mac, the first launch is blocked until you
+allow it in System Settings → Privacy & Security → Open Anyway. Replacing the app keeps your progress
+(it lives in `~/Library/Application Support/Phantom Life`).
+
+The window's background is drawn in `build/installer/dmg.html`; after changing it, run
+`npm run dmg-background` (on any system) to regenerate the PNGs.
+
+`npm run install_app` still builds the app and copies it straight into `/Applications`, without an image.
 
 Reminders, the global shortcut and the tray run only in the installed app.
 
