@@ -5,6 +5,7 @@
   "description": "A Persona 5 styled life tracker. Take your time.",
   "main": "main.js",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "start": "node scripts/start.js",
     "test": "playwright test",

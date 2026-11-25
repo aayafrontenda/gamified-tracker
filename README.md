@@ -137,5 +137,10 @@ Export and import from the System screen (gear icon).
 
 [@aayafrontenda](https://github.com/aayafrontenda) · [@jumazes](https://github.com/jumazes)
 
-Phantom Life is an unofficial fan project, not affiliated with or endorsed by ATLUS or SEGA. Persona
-and related names belong to their owners.
+## License
+
+The code is released under the [MIT License](LICENSE).
+
+Phantom Life is an unofficial fan project, not affiliated with or endorsed by ATLUS or SEGA. Persona,
+its characters and related names belong to their owners and are not covered by the license — that
+includes Igor's picture in the Velvet Room (`gamified-life-tracker/src/assets/igor.jpg`).
