@@ -1693,41 +1693,42 @@ function daysSince(pred, endKey) {
   return last ? Math.round((parseKey(endKey) - parseKey(last)) / 86400000) : null;
 }
 
-function igorLines(wk, W, P, rev) {
+// The week in review: what went up, what slipped, what's due. Each insight is
+// { tone: 'good' | 'warn' | 'info', icon: HTML, text: HTML } — names are escaped here.
+function weekInsights(wk, W, P) {
   const b = s => `<b>${esc(s)}</b>`;
+  const out = [];
+  const add = (tone, icon, text) => out.push({ tone, icon: typeof icon === 'string' && ICONS[icon] ? iconSvg(icon) : icon, text });
   const today = dkey();
   const endKey = dkey(W.end) < today ? dkey(W.end) : today;
   const isCur = wk === weekKey(new Date());
-  const L = [isCur
-    ? tr('Welcome to the Velvet Room. Let us look upon the week that is still unfolding...')
-    : tr('Welcome to the Velvet Room. Let us look back upon the week of {date}.', { date: b(fmtMD(wk)) })];
 
   if (!W.actions) {
-    L.push(tr('Hm... not a single action recorded. Even a prisoner paces his cell, Trickster.'));
+    add('info', 'moon', tr('No actions logged this week yet.'));
   } else {
     const xpB = b(W.xp + ' XP');
     if (P.xp > 0) {
       const d = Math.round((W.pace - P.pace) / P.pace * 100);
-      if (d >= 15) L.push(tr(isCur ? 'You earned {xp}, {pct} more per day than the week before. Your rehabilitation proceeds splendidly.'
-        : 'You earned {xp}, {pct} more than the week before. Your rehabilitation proceeds splendidly.', { xp: xpB, pct: b(d + '%') }));
-      else if (d <= -15) L.push(tr(isCur ? '{xp} so far, {pct} less per day than before. A lull... or the first sign of distortion?'
-        : '{xp} so far, {pct} less than before. A lull... or the first sign of distortion?', { xp: xpB, pct: b(-d + '%') }));
-      else L.push(tr('{xp}, keeping pace with the week before. Consistency is its own kind of power.', { xp: xpB }));
+      if (d >= 15) add('good', 'chart', tr('{xp} — {pct} more per day than the week before.', { xp: xpB, pct: b(d + '%') }));
+      else if (d <= -15) add('warn', 'chart', tr('{xp} — {pct} less per day than the week before.', { xp: xpB, pct: b(-d + '%') }));
+      else add('info', 'chart', tr('{xp} — the same pace as the week before.', { xp: xpB }));
     } else {
-      L.push(tr('You earned {xp} across {actions}. A fine beginning.', { xp: xpB, actions: b(trn(W.actions, '{n} action', '{n} actions')) }));
+      add('info', 'chart', tr('{xp} from {actions}.', { xp: xpB, actions: b(trn(W.actions, '{n} action', '{n} actions')) }));
     }
-    L.push(tr('You acted on {days} days.', { days: b(tr('{n} of {all}', { n: W.activeDays, all: W.elapsed })) })
-      + (W.activeDays === W.elapsed && W.elapsed >= 5 ? ' ' + tr('Not a single day wasted. Remarkable.') : ''));
+    const allDays = W.activeDays === W.elapsed && W.elapsed >= 5;
+    add(allDays ? 'good' : 'info', 'flame', tr('Active on {days} days.', { days: b(tr('{n} of {all}', { n: W.activeDays, all: W.elapsed })) })
+      + (allDays ? ' ' + tr('Not a day missed.') : ''));
     const [topStat, topVal] = Object.entries(W.stats).sort((a, b2) => b2[1] - a[1])[0];
-    if (topVal > 0) L.push(tr('Your {stat} grew the most (+{n}).', { stat: b(STATS[topStat].name), n: topVal }));
-    const topSkill = Object.entries(W.skills).sort((a, b2) => b2[1] - a[1])[0];
-    if (topSkill && skillById(topSkill[0])) L.push(tr('{skill} was your sharpest weapon.', { skill: b(skillById(topSkill[0]).name) }));
+    if (topVal > 0) add('good', 'star', tr('{stat} grew the most: +{n}.', { stat: b(STATS[topStat].name), n: topVal }));
+    const [topId, topXp] = Object.entries(W.skills).sort((a, b2) => b2[1] - a[1])[0] || [];
+    const top = skillById(topId);
+    if (top) add('good', skillIcon(top) || 'bolt', tr('{skill} earned the most XP ({xp}).', { skill: b(top.name), xp: topXp }));
   }
 
   if (W.dailyRate !== null && W.actions) {
     const pct = Math.round(W.dailyRate * 100);
-    if (pct >= 80) L.push(tr('Your daily rituals held firm: {pct} kept.', { pct: b(pct + '%') }));
-    else if (pct < 40) L.push(tr('Your daily vows slipped. Only {pct} kept. Perhaps they ask too much... or you, too little.', { pct: b(pct + '%') }));
+    if (pct >= 80) add('good', 'target', tr('Dailies kept: {pct}.', { pct: b(pct + '%') }));
+    else if (pct < 40) add('warn', 'target', tr('Only {pct} of dailies kept — maybe there are too many.', { pct: b(pct + '%') }));
   }
 
   const focus = state.reviews[prevWeek(wk)]?.focus || [];
@@ -1735,8 +1736,8 @@ function igorLines(wk, W, P, rev) {
     const s = skillById(id);
     if (!s) continue;
     const xp = W.skills[id] || 0;
-    L.push(xp ? tr('You swore to focus on {skill}, and it received {xp}. A promise kept.', { skill: b(s.name), xp: b(xp + ' XP') })
-      : tr('You swore to focus on {skill}... and did not. Hm hm hm.', { skill: b(s.name) }));
+    if (xp) add('good', skillIcon(s) || 'star', tr('Focus skill {skill}: {xp}.', { skill: b(s.name), xp: b(xp + ' XP') }));
+    else add('warn', skillIcon(s) || 'star', tr('Focus skill {skill} got no XP.', { skill: b(s.name) }));
   }
 
   const old = s => Math.round((parseKey(endKey) - new Date(s.createdAt || 0)) / 86400000) >= 14;
@@ -1745,44 +1746,39 @@ function igorLines(wk, W, P, rev) {
     .map(s => [s, daysSince(e => s.id in entrySkills(e), endKey)])
     .filter(([, d]) => d === null || d >= 14)
     .slice(0, 2);
-  for (const [s, d] of dusty) L.push(d === null ? tr('{skill} gathers dust, never once practiced.', { skill: b(s.name) })
-    : trn(d, '{skill} gathers dust, {n} day untouched.', '{skill} gathers dust, {n} days untouched.', { skill: b(s.name) }));
+  for (const [s, d] of dusty) add('warn', skillIcon(s) || 'moon', d === null ? tr('{skill} — never practiced yet.', { skill: b(s.name) })
+    : trn(d, '{skill} — untouched for {n} day.', '{skill} — untouched for {n} days.', { skill: b(s.name) }));
 
   const distant = state.confidants
     .filter(old)
     .map(c => [c, daysSince(e => entryConfs(e).includes(c.id), endKey)])
     .filter(([, d]) => d === null || d >= 14)
     .slice(0, 2);
-  for (const [c, d] of distant) L.push(d === null ? tr('You have not seen {name} since you met. A bond untended does not grow.', { name: b(c.name) })
-    : trn(d, 'You have not seen {name} in {n} day. A bond untended does not grow.', 'You have not seen {name} in {n} days. A bond untended does not grow.', { name: b(c.name) }));
+  for (const [c, d] of distant) add('warn', 'users', d === null ? tr('No time with {name} yet.', { name: b(c.name) })
+    : trn(d, 'No time with {name} for {n} day.', 'No time with {name} for {n} days.', { name: b(c.name) }));
 
   if (isCur || wk === prevWeek(weekKey(new Date()))) {
     const due = state.quests.filter(q => q.type === 'once' && q.deadline && !questCompletion(q))
       .map(q => [q, daysUntil(q.deadline)]).filter(([, n]) => n >= 0 && n <= 10).sort((a, b2) => a[1] - b2[1])[0];
-    if (due) L.push(due[1] === 0 ? tr('A deadline approaches: {title}, today.', { title: b(due[0].title) })
-      : trn(due[1], 'A deadline approaches: {title}, in {n} day.', 'A deadline approaches: {title}, in {n} days.', { title: b(due[0].title) }));
+    if (due) add(due[1] <= 2 ? 'warn' : 'info', 'target', due[1] === 0 ? tr('Deadline today: {title}.', { title: b(due[0].title) })
+      : trn(due[1], 'Deadline in {n} day: {title}.', 'Deadline in {n} days: {title}.', { title: b(due[0].title) }));
     // the open mission whose next stage is due soonest (or already late)
     const step = state.quests.filter(q => !questCompletion(q) && nextStage(q)?.deadline)
       .map(q => [q, nextStage(q), daysUntil(nextStage(q).deadline)]).filter(([, , n]) => n <= 7).sort((a, b2) => a[2] - b2[2])[0];
     if (step) {
       const [q, s, n] = step;
       const v = { step: b(s.title), mission: b(q.title) };
-      L.push(n < 0 ? trn(-n, '{step} — a step toward {mission} — is {n} day late. The path does not walk itself.',
-        '{step} — a step toward {mission} — is {n} days late. The path does not walk itself.', v)
-        : n === 0 ? tr('Your next step toward {mission}: {step}, due today.', v)
-        : trn(n, 'Your next step toward {mission}: {step}, due in {n} day.', 'Your next step toward {mission}: {step}, due in {n} days.', v));
+      add(n <= 0 ? 'warn' : 'info', 'flame', n < 0 ? trn(-n, 'Stage {step} of {mission} is {n} day late.', 'Stage {step} of {mission} is {n} days late.', v)
+        : n === 0 ? tr('Next stage of {mission} is due today: {step}.', v)
+        : trn(n, 'Next stage of {mission} is due in {n} day: {step}.', 'Next stage of {mission} is due in {n} days: {step}.', v));
     }
     const behind = state.quests.find(q => missionPace(q) === 'behind');
-    if (behind && !step) L.push(tr('{title} has fallen behind its pace. Perhaps the next step is smaller than you fear.', { title: b(behind.title) }));
+    if (behind && !step) add('warn', 'flame', tr('{title} is behind schedule.', { title: b(behind.title) }));
   }
 
   const ci = conditionInsight();
-  if (ci) L.push(ci);
-
-  L.push(tr(rev
-    ? 'Your contract for this week is sealed. Return when the next week ends.'
-    : 'Now then... reflect, and choose where your strength will flow next week.'));
-  return L;
+  if (ci) add(ci.tone, 'leaf', ci.text);
+  return out;
 }
 
 function readContract(f) {
@@ -1828,7 +1824,7 @@ function scrVelvet() {
   const q = (name, label, ph) => `<label class="fld"><span>${tr(label)}</span><textarea name="${name}" rows="4" maxlength="1200" placeholder="${tr(ph)}">${esc(val(name))}</textarea></label>`;
 
   return `<div class="velvet">
-    ${head('velvet', 'Welcome to the Velvet Room.')}
+    ${head('velvet')}
     <div class="vr-weeknav">
       <button class="vr-arrow" data-act="vr-week" data-dir="-1" title="${tr('Previous week')}">◀</button>
       <div class="vr-week"><span>${tr('WEEK OF')}</span><b>${fmtMD(wk)} – ${fmtMD(dkey(W.end))}</b></div>
@@ -1838,12 +1834,11 @@ function scrVelvet() {
     </div>
 
     <div class="vr-grid">
-      <section class="vr-stage">
-        <div class="vr-curtain l"></div><div class="vr-curtain r"></div>
-        <div class="vr-igor"><img src="assets/igor.jpg" alt="${tr('Igor')}" draggable="false"></div>
-        <div class="vr-dialog"><div class="vr-name">${tr('IGOR')}</div>
-          ${igorLines(wk, W, P, rev).map((l, i) => `<p style="--d:${(i * 0.35).toFixed(2)}s">${l}</p>`).join('')}
-        </div>
+      <section class="vr-review">
+        <div class="vr-tag">${tr('WEEK IN REVIEW')}</div>
+        <ul class="vr-insights">${weekInsights(wk, W, P).map((it, i) => `<li class="vr-in ${it.tone}" style="--d:${(i * 0.06).toFixed(2)}s">
+          <span class="vr-in-ico" aria-hidden="true">${it.icon}</span><p>${it.text}</p></li>`).join('')}</ul>
+        <p class="vr-review-foot">${tr(rev ? 'This week’s contract is sealed.' : 'Fill in the contract below and pick next week’s focus skills.')}</p>
       </section>
       <section class="vr-ledger">
         <div class="vr-tag">${tr('LEDGER')}</div>
@@ -2082,7 +2077,7 @@ function conditionPanel() {
   </section>`;
 }
 
-// Igor compares XP on good days vs rough days over the last 60 days.
+// XP on good days vs rough days over the last 60 days, for the week in review: { tone, text } or null.
 function conditionInsight() {
   const good = [], bad = [];
   for (let i = 1; i <= 60; i++) {
@@ -2090,14 +2085,14 @@ function conditionInsight() {
     if (!c) continue;
     (c === 'great' || c === 'good' ? good : bad).push(D.byDate[k] || 0);
   }
-  if (good.length < 3 || bad.length < 3) return '';
+  if (good.length < 3 || bad.length < 3) return null;
   const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
   const g = avg(good), b = avg(bad);
-  if (!g) return '';
+  if (!g) return null;
   const pct = Math.round((g - b) / g * 100);
   return pct >= 15
-    ? tr('On days you felt tired or sick you earned <b>{pct}% less XP</b>. Rest, too, is part of the heist.', { pct })
-    : tr('Even on your rough days you kept pace. Hm hm... impressive.');
+    ? { tone: 'info', text: tr('On tired or sick days you earned <b>{pct}% less XP</b>.', { pct }) }
+    : { tone: 'good', text: tr('Your pace held up on rough days too.') };
 }
 
 /* ---------- mementos requests ---------- */
