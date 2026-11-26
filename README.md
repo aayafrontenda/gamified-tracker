@@ -33,9 +33,9 @@ macOS and Windows · English and Russian · everything stays on your computer: n
 - **Mementos requests**: each day a neglected skill earns ×2 XP on its first action.
 
 **Look back**
-- **Velvet Room**: every week Igor reviews your XP pace, stat growth, neglected skills, distant
-  confidants and upcoming deadlines. Grade the week, reflect, and seal a contract choosing up to three
-  focus skills that earn ×1.5 XP the next week.
+- **Velvet Room**: a weekly review of your XP pace, stat growth, neglected skills, distant confidants
+  and upcoming deadlines. Grade the week, reflect, and seal a contract choosing up to three focus
+  skills that earn ×1.5 XP the next week.
 - **Share week**: any week as a 1080×1080 card, copied to the clipboard or saved as a PNG. Numbers only;
   your notes stay private.
 - **Journal**: the full history, a month calendar, weekly charts, and how your daily condition affects
@@ -142,5 +142,4 @@ Export and import from the System screen (gear icon).
 The code is released under the [MIT License](LICENSE).
 
 Phantom Life is an unofficial fan project, not affiliated with or endorsed by ATLUS or SEGA. Persona,
-its characters and related names belong to their owners and are not covered by the license — that
-includes Igor's picture in the Velvet Room (`gamified-life-tracker/src/assets/igor.jpg`).
+its characters and related names belong to their owners and are not covered by the license.

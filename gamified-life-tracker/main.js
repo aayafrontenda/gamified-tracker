@@ -338,7 +338,7 @@ function lang() {
 }
 const RU = {
   'Stop timer': 'Остановить таймер', 'Open Phantom Life': 'Открыть Phantom Life', 'Take action': 'Действовать', Quit: 'Выйти',
-  ' (paused)': ' (пауза)', 'Save file': 'Файл сохранения', 'PNG image': 'Изображение PNG', Morgana: 'Моргана', Igor: 'Игорь',
+  ' (paused)': ' (пауза)', 'Save file': 'Файл сохранения', 'PNG image': 'Изображение PNG', Morgana: 'Моргана', 'Velvet Room': 'Бархатная комната',
 };
 const t = s => (lang() === 'ru' && RU[s]) || s;
 ipcMain.on('lang', (_e, l) => {
@@ -493,8 +493,8 @@ function remind(kind, force = false) {
   if (kind === 'velvet' && now.getDay() === 0 && due(st.remindVelvet, '19:00')) {
     fired[kind] = today;
     if ((save.reviews || {})[weekKey(now)]) return;
-    notify(t('Igor'), lang() === 'ru' ? 'Добро пожаловать в Бархатную комнату… Неделя подходит к концу. Давай подведём её итоги.'
-      : 'Welcome to the Velvet Room… The week draws to a close. Come, let us appraise it.', 'velvet');
+    notify(t('Velvet Room'), lang() === 'ru' ? 'Неделя подходит к концу — самое время подвести итоги и заключить контракт.'
+      : 'The week is almost over — time to review it and seal your contract.', 'velvet');
   }
 }
 const checkReminders = () => ['dailies', 'bed', 'velvet'].forEach(k => remind(k));

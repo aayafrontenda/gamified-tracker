@@ -890,43 +890,30 @@ kbd {
 }
 
 .vr-grid { display: grid; grid-template-columns: 1fr; gap: 30px; margin-bottom: 34px; }
-.vr-stage {
-  position: relative; overflow: hidden; display: flex; align-items: center; gap: 4px;
-  min-height: 460px; padding: 34px 34px;
+/* week in review: one card per insight, tinted by tone */
+.vr-review {
   background:
-    radial-gradient(ellipse at 28% 45%, rgba(130,160,255,.28), transparent 55%),
+    radial-gradient(ellipse at 15% 0%, rgba(130,160,255,.22), transparent 55%),
     linear-gradient(180deg, #16237a, #091035);
-  border: 2px solid var(--gold);
-  box-shadow: 8px 8px 0 #000, inset 0 0 0 6px rgba(216,180,90,.12);
+  border: 2px solid var(--gold); box-shadow: 8px 8px 0 #000; padding: 20px 24px 16px;
 }
-.vr-curtain { position: absolute; top: 0; bottom: 0; width: 34px; z-index: 1; background: repeating-linear-gradient(90deg, #0b1450 0 6px, #2a3fa8 6px 9px, #0b1450 9px 14px); opacity: .9; }
-.vr-curtain.l { left: 0; clip-path: polygon(0 0, 100% 0, 60% 100%, 0 100%); }
-.vr-curtain.r { right: 0; clip-path: polygon(0 0, 100% 0, 100% 100%, 40% 100%); }
-.vr-igor { position: absolute; left: 0; top: 0; bottom: 0; width: 54%; }
-.vr-igor img {
-  display: block; width: 100%; height: 100%; object-fit: cover; object-position: 30% 18%;
-  -webkit-mask-image: linear-gradient(90deg, #000 68%, transparent 100%), linear-gradient(180deg, #000 72%, transparent 100%);
-  -webkit-mask-composite: source-in; mask-composite: intersect;
-  animation: igorIn .7s var(--ease);
+.vr-insights { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.vr-in {
+  display: grid; grid-template-columns: 40px 1fr; gap: 12px; align-items: center; padding: 12px 14px;
+  background: rgba(6,10,36,.78); border-left: 5px solid var(--vb-hi); color: var(--white);
+  transform: skewX(-2deg); opacity: 0; animation: vrIn .4s var(--d) var(--ease) forwards;
 }
-@keyframes igorIn { from { opacity: 0; transform: translateX(-30px) scale(1.04); } }
-.vr-dialog {
-  position: relative; flex: 1; z-index: 2; margin-left: 50%;
-  background: rgba(7,11,34,.94); color: var(--white); border: 3px solid var(--white);
-  padding: 30px 24px 14px; transform: rotate(-1deg);
-  box-shadow: 6px 6px 0 var(--vb-hi);
-}
-.vr-dialog::before {
-  content: ""; position: absolute; left: -26px; top: 46%; width: 26px; height: 26px;
-  background: var(--white); clip-path: polygon(100% 0, 0 60%, 100% 100%);
-}
-.vr-dialog p { margin: 0 0 10px; font-size: 15px; line-height: 1.55; opacity: 0; animation: vrLine .5s var(--d) forwards; }
-.vr-dialog b { color: var(--gold-hi); }
-@keyframes vrLine { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
-.vr-name {
-  position: absolute; top: -18px; left: 18px; background: var(--gold); color: #0b0b0b;
-  font: italic 900 18px var(--display); letter-spacing: 3px; padding: 2px 16px; transform: rotate(-3deg);
-}
+.vr-in > * { transform: skewX(2deg); }
+.vr-in p { margin: 0; font-size: 14px; line-height: 1.45; }
+.vr-in b { color: var(--gold-hi); }
+.vr-in-ico { width: 40px; height: 40px; display: grid; place-items: center; background: var(--vb-hi); color: var(--white); clip-path: polygon(8% 0, 100% 6%, 92% 100%, 0 94%); }
+.vr-in-ico .ico { width: 20px; height: 20px; margin: 0; }
+.vr-in.good { border-left-color: var(--gold); }
+.vr-in.good .vr-in-ico { background: var(--gold); color: var(--vb-lo); }
+.vr-in.warn { border-left-color: var(--red); }
+.vr-in.warn .vr-in-ico { background: var(--red); color: var(--on-red); }
+.vr-review-foot { margin: 14px 0 0; font: italic 800 14px var(--display); letter-spacing: 1px; text-transform: uppercase; color: var(--gold-hi); }
+@keyframes vrIn { from { opacity: 0; transform: skewX(-2deg) translateY(8px); } to { opacity: 1; transform: skewX(-2deg); } }
 
 .vr-ledger {
   background: rgba(6,10,36,.85); border: 2px solid var(--gold); box-shadow: 8px 8px 0 #000; padding: 20px 24px;
@@ -1034,7 +1021,7 @@ kbd {
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
-  .vr-dialog p { opacity: 1; }
+  .vr-in { opacity: 1; }
 }
 .mi[data-id="velvet"] .mi-t, .mi[data-id="compendium"] .mi-t { font-size: 28px; letter-spacing: -.8px; }
 .vr-archive .vr-tag { align-self: flex-start; }
